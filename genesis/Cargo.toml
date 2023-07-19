@@ -1,0 +1,7 @@
+[package]
+name = "genesis_migration"
+version = "0.1.0"
+edition = "2021"
+description = "Migrates the Nimiq PoW accounts state and constructs the first Nimiq PoS Election Block"
+
+[dependencies]

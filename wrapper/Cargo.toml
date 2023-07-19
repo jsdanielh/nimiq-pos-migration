@@ -1,0 +1,7 @@
+[package]
+name = "pos_wrapper"
+version = "0.1.0"
+edition = "2021"
+description = "Wrapper for migrating and starting a Nimiq PoS Validator"
+
+[dependencies]

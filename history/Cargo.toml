@@ -1,0 +1,7 @@
+[package]
+name = "history_migration"
+version = "0.1.0"
+edition = "2021"
+description = "Migrates the Nimiq PoW history to Nimiq PoS"
+
+[dependencies]
