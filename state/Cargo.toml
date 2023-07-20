@@ -1,0 +1,13 @@
+[package]
+name = "state_migration"
+version = "0.1.0"
+edition = "2021"
+description = "Migrates the Nimiq PoW state to Nimiq PoS"
+
+[dependencies]
+clap = { version = "4.3", features = ["derive"] }
+jsonrpc = "0.11"
+log = { package = "tracing", version = "0.1", features = ["log"] }
+nimiq-genesis-builder = { git = "https://github.com/nimiq/core-rs-albatross.git", branch = "jsdanielh/genesis" }
+nimiq_rpc = "0.1"
+thiserror = "1.0"
