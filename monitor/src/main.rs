@@ -1,7 +1,12 @@
-use log::info;
-use nimiq_rpc::Client;
+use log::{error, info};
+use nimiq_rpc::{primitives::OutgoingTransaction, Client};
 use simple_logger::SimpleLogger;
-use std::{thread::sleep, time::Duration};
+use std::{process::exit, thread::sleep, time::Duration};
+
+pub enum ValidatorsReadiness {
+    NotReady,
+    Ready(u32),
+}
 
 // Sends a transaction to the Nimiq PoW chain to report that we are ready
 // The transaction format is defined as follow:
@@ -18,14 +23,22 @@ use std::{thread::sleep, time::Duration};
 // It is possible to signal that a validator is no longer ready by reversing this transaction:
 // Removing all funds from the validator address acount.
 //
-fn _generate_ready_tx() {
-    let _tx = nimiq_rpc::primitives::OutgoingTransaction {
+fn generate_ready_tx() -> OutgoingTransaction {
+    let tx = OutgoingTransaction {
         from: "Any address".to_string(),
         to: "Validator address".to_string(),
         value: 100, //Lunas
         fee: 0,
         //data: "signature(address)"
     };
+
+    tx
+}
+
+// Checks if enough validators are ready
+// If thats the case, the next election block candidate is returned
+fn check_validators_reeady() -> ValidatorsReadiness {
+    ValidatorsReadiness::NotReady
 }
 
 fn main() {
@@ -48,5 +61,34 @@ fn main() {
         info!(" Consensus has not been established yet..");
         info!(" Current block height: {}", client.block_number().unwrap());
         sleep(Duration::from_secs(10));
+    }
+
+    //Report we are ready to the Nimiq PoW chain:
+    let transaction = generate_ready_tx();
+
+    match client.send_transaction(&transaction) {
+        Ok(_) => info!(" Sent ready transaction to the Nimiq PoW network"),
+        Err(err) => {
+            error!(" Failed sending ready transaction {}", err);
+            exit(1);
+        }
+    }
+
+    let mut validators_ready = false;
+
+    while !validators_ready {
+        let validators_status = check_validators_reeady();
+        match validators_status {
+            ValidatorsReadiness::NotReady => {
+                info!("Validators are not ready yet");
+                validators_ready = false;
+                sleep(Duration::from_secs(10));
+                continue;
+            }
+            ValidatorsReadiness::Ready(block_number) => info!(
+                " We found a potential election block candidate {}",
+                block_number
+            ),
+        }
     }
 }
