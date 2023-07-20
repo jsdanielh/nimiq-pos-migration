@@ -1,7 +1,12 @@
 use log::{error, info};
-use nimiq_rpc::{primitives::OutgoingTransaction, Client};
+use nimiq_rpc::{
+    primitives::{Address, OutgoingTransaction, Transaction},
+    Client,
+};
 use simple_logger::SimpleLogger;
-use std::{process::exit, thread::sleep, time::Duration};
+use std::{collections::HashMap, process::exit, thread::sleep, time::Duration};
+
+const ACTIVATION_HEIGHT: u64 = 100;
 
 pub enum ValidatorsReadiness {
     NotReady,
@@ -37,7 +42,24 @@ fn generate_ready_tx() -> OutgoingTransaction {
 
 // Checks if enough validators are ready
 // If thats the case, the next election block candidate is returned
-fn check_validators_reeady() -> ValidatorsReadiness {
+fn check_validators_ready(client: &Client) -> ValidatorsReadiness {
+    // First we need to obtain the validator list for the first epoch.
+    let validator_list: Vec<Address> = Vec::new();
+    let mut validator_transactions = HashMap::new();
+
+    // Now we need to collect all the transations for each validator
+    for validator in validator_list {
+        if let Ok(transactions) = client.get_transactions_by_address(&validator.address, 10) {
+            // We only keep the ones past the activation window
+            let filtered_txns: Vec<Transaction> = transactions
+                .into_iter()
+                .filter(|txn| txn.block_number > ACTIVATION_HEIGHT)
+                .collect();
+            // We also need to verify that ech txn was signed by each validator owner
+            validator_transactions.insert(validator.address, filtered_txns);
+        }
+    }
+
     ValidatorsReadiness::NotReady
 }
 
@@ -77,7 +99,7 @@ fn main() {
     let mut validators_ready = false;
 
     while !validators_ready {
-        let validators_status = check_validators_reeady();
+        let validators_status = check_validators_ready(&client);
         match validators_status {
             ValidatorsReadiness::NotReady => {
                 info!("Validators are not ready yet");
