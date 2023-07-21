@@ -5,6 +5,7 @@ edition = "2021"
 description = "Sends a validator ready transaction to the Nimiq PoW chain and monitor this chain for validator readiness"
 
 [dependencies]
+clap = { version = "4.3", features = ["derive"] }
 log = "0.4.19"
 nimiq_rpc = "0.1.2"
 simple_logger = "4.2.0"

@@ -1,3 +1,4 @@
+use clap::Parser;
 use log::{error, info};
 use nimiq_rpc::{
     primitives::{Address, OutgoingTransaction, Transaction},
@@ -11,6 +12,23 @@ const ACTIVATION_HEIGHT: u64 = 100;
 pub enum ValidatorsReadiness {
     NotReady,
     Ready(u32),
+}
+
+/// Command line arguments for the binary
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    /// RPC connection URL to use
+    #[arg(short, long)]
+    rpc: String,
+
+    /// The account address that will pay the ready transaction
+    #[arg(short, long)]
+    sender: String,
+
+    /// The validator address
+    #[arg(short, long)]
+    validator: String,
 }
 
 // Sends a transaction to the Nimiq PoW chain to report that we are ready
@@ -28,10 +46,14 @@ pub enum ValidatorsReadiness {
 // It is possible to signal that a validator is no longer ready by reversing this transaction:
 // Removing all funds from the validator address acount.
 //
-fn generate_ready_tx() -> OutgoingTransaction {
+fn generate_ready_tx(sender: String, validator: String) -> OutgoingTransaction {
+    info!(
+        " Generating ready transaction, from {} to {}",
+        sender, validator
+    );
     let tx = OutgoingTransaction {
-        from: "Any address".to_string(),
-        to: "Validator address".to_string(),
+        from: sender,
+        to: validator,
         value: 100, //Lunas
         fee: 0,
         //data: "signature(address)"
@@ -69,16 +91,16 @@ fn main() {
         .init()
         .unwrap();
 
+    let args = Args::parse();
+
     //let client = Client::new("http://seed1.nimiq-testnet.com:8648/".to_string());
-    let client = Client::new("http://127.0.0.1:8648/".to_string());
+    let client = Client::new(args.rpc);
 
-    let mut consensus_established = false;
-
-    while !consensus_established {
+    loop {
         let status = client.consensus().unwrap();
         if status.eq("established") {
             info!(" Consensus is established");
-            consensus_established = true;
+            break;
         }
         info!(" Consensus has not been established yet..");
         info!(" Current block height: {}", client.block_number().unwrap());
@@ -86,7 +108,7 @@ fn main() {
     }
 
     //Report we are ready to the Nimiq PoW chain:
-    let transaction = generate_ready_tx();
+    let transaction = generate_ready_tx(args.sender, args.validator);
 
     match client.send_transaction(&transaction) {
         Ok(_) => info!(" Sent ready transaction to the Nimiq PoW network"),
