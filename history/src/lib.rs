@@ -20,7 +20,6 @@ use nimiq_rpc::{
 use nimiq_transaction::{
     extended_transaction::ExtendedTransaction, ExecutedTransaction, Transaction, TransactionFlags,
 };
-
 use thiserror::Error;
 
 /// Error types that can be returned
@@ -141,8 +140,8 @@ pub fn get_history_root(client: &Client, cutting_pow_block: Block) -> Result<Str
             0,
             &ExtendedTransaction::from(
                 network_id,
-                block_height as u32,
-                block.timestamp,
+                block_height,
+                block.timestamp.into(),
                 transactions,
                 [].to_vec(),
             ),

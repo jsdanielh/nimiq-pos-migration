@@ -28,7 +28,7 @@ fn main() {
     let args = Args::parse();
     let client = Client::new(args.rpc);
     let block = client.get_block_by_hash(&args.hash, false).unwrap();
-    if block.number != args.height as u64 {
+    if block.number != args.height {
         log::error!(
             height = args.height,
             hash = args.hash,
