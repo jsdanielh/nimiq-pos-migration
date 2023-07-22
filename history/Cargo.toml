@@ -1,7 +1,19 @@
 [package]
+description = "Migrates the Nimiq PoW history to Nimiq PoS"
+edition = "2021"
 name = "history_migration"
 version = "0.1.0"
-edition = "2021"
-description = "Migrates the Nimiq PoW history to Nimiq PoS"
 
 [dependencies]
+clap = {version = "4.3", features = ["derive"]}
+hex = "0.4"
+jsonrpc = "0.11"
+log = {package = "tracing", version = "0.1", features = ["log"]}
+nimiq-blockchain = {git = "https://github.com/nimiq/core-rs-albatross.git", branch = "jsdanielh/transaction"}
+nimiq-database = {git = "https://github.com/nimiq/core-rs-albatross.git", branch = "jsdanielh/transaction"}
+nimiq-hash = {git = "https://github.com/nimiq/core-rs-albatross.git", branch = "jsdanielh/transaction"}
+nimiq-keys = {git = "https://github.com/nimiq/core-rs-albatross.git", branch = "jsdanielh/transaction"}
+nimiq-primitives = {git = "https://github.com/nimiq/core-rs-albatross.git", branch = "jsdanielh/transaction"}
+nimiq-transaction = {git = "https://github.com/nimiq/core-rs-albatross.git", branch = "jsdanielh/transaction"}
+nimiq_rpc = {git = "https://github.com/jsdanielh/rust-client.git"}
+thiserror = "1.0"
