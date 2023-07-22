@@ -27,6 +27,8 @@ struct Args {
 fn main() {
     let args = Args::parse();
     let client = Client::new(args.rpc);
+
+    // Get block according to arguments and check if it exists
     let block = client.get_block_by_hash(&args.hash, false).unwrap();
     if block.number != args.height {
         log::error!(
@@ -36,7 +38,13 @@ fn main() {
         );
         std::process::exit(1);
     }
+
     log::info!(filename = args.file, "Building history tree");
-    let history_tree_root = get_history_root(&client, block).unwrap();
-    log::info!(history_tree_root, "Finished writing PoS genesis to file");
+    match get_history_root(&client, block) {
+        Ok(history_root) => log::info!(history_root, "Finished building history tree"),
+        Err(e) => {
+            log::error!(error = ?e, "Failed to build history root");
+            std::process::exit(1);
+        }
+    }
 }
