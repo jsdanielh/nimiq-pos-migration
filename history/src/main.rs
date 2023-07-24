@@ -26,7 +26,7 @@ struct Args {
 
 fn main() {
     let args = Args::parse();
-    let client = Client::new(args.rpc);
+    let client = Client::new(&args.rpc);
 
     // Get block according to arguments and check if it exists
     let block = client.get_block_by_hash(&args.hash, false).unwrap();

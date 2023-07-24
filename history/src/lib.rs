@@ -116,6 +116,7 @@ pub fn get_history_root(client: &Client, cutting_pow_block: Block) -> Result<Str
     let history_store = HistoryStore::new(env.clone());
     let mut txn = env.write_transaction();
     for block_height in 1..cutting_pow_block.number {
+        log::debug!(block_height, "Processing block");
         let mut transactions = vec![];
         let block = client.get_block_by_number(block_height, false)?;
         let mut network_id = NetworkId::Main;
