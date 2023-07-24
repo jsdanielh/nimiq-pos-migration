@@ -4,7 +4,6 @@ version = "0.1.0"
 edition = "2021"
 description = "Migrates the Nimiq PoW history to Nimiq PoS"
 
-
 [dependencies]
 clap = { version = "4.3", features = ["derive"] }
 hex = "0.4"
@@ -18,3 +17,4 @@ nimiq-primitives = { git = "https://github.com/nimiq/core-rs-albatross.git", bra
 nimiq-transaction = { git = "https://github.com/nimiq/core-rs-albatross.git", branch = "jsdanielh/transaction" }
 nimiq_rpc = { git = "https://github.com/jsdanielh/rust-client.git" }
 thiserror = "1.0"
+tracing-subscriber = { version = "0.3", features = ["registry"] }

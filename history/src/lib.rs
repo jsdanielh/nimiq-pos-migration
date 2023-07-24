@@ -12,8 +12,7 @@ use nimiq_primitives::{
 };
 use nimiq_rpc::{
     primitives::{
-        Account, Block, TransactionDetails as PoWTransaction,
-        TransactionSequence as PoWTransactionSequence,
+        Block, TransactionDetails as PoWTransaction, TransactionSequence as PoWTransactionSequence,
     },
     Client,
 };
@@ -56,13 +55,7 @@ fn from_pow_network_id(pow_network_id: u8) -> Result<NetworkId, Error> {
     }
 }
 
-fn get_account_type(client: &Client, address: &str) -> Result<AccountType, Error> {
-    let account = client.get_account(address)?;
-    let pow_account_type = match account {
-        Account::Basic(account) => account.r#type,
-        Account::Vesting(account) => account.r#type,
-        Account::HTLC(account) => account.r#type,
-    };
+fn get_account_type(pow_account_type: &u8) -> Result<AccountType, Error> {
     match pow_account_type {
         0u8 => Ok(AccountType::Basic),
         1u8 => Ok(AccountType::Vesting),
@@ -71,14 +64,11 @@ fn get_account_type(client: &Client, address: &str) -> Result<AccountType, Error
     }
 }
 
-fn from_pow_transaction(
-    client: &Client,
-    pow_transaction: &PoWTransaction,
-) -> Result<Transaction, Error> {
+fn from_pow_transaction(pow_transaction: &PoWTransaction) -> Result<Transaction, Error> {
     let sender = Address::from_user_friendly_address(&pow_transaction.from_address)?;
-    let sender_type = get_account_type(client, &pow_transaction.from_address)?;
+    let sender_type = get_account_type(&pow_transaction.from_type)?;
     let recipient = Address::from_user_friendly_address(&pow_transaction.to_address)?;
-    let recipient_type = get_account_type(client, &pow_transaction.to_address)?;
+    let recipient_type = get_account_type(&pow_transaction.to_type)?;
     let value = Coin::try_from(pow_transaction.value)?;
     let fee = Coin::try_from(pow_transaction.fee)?;
     let data = if let Some(data) = &pow_transaction.data {
@@ -116,19 +106,24 @@ pub fn get_history_root(client: &Client, cutting_pow_block: Block) -> Result<Str
     let history_store = HistoryStore::new(env.clone());
     let mut txn = env.write_transaction();
     for block_height in 1..cutting_pow_block.number {
-        log::debug!(block_height, "Processing block");
+        log::debug!(
+            block_height,
+            "Processing block, progress {:.2}%",
+            block_height as f32 / cutting_pow_block.number as f32 * 100f32
+        );
         let mut transactions = vec![];
         let block = client.get_block_by_number(block_height, false)?;
         let mut network_id = NetworkId::Main;
         match block.transactions {
             PoWTransactionSequence::BlockHashes(hashes) => {
                 for hash in hashes {
+                    log::trace!(hash, "Processing transaction");
                     let pow_transaction = client.get_transaction_by_hash(&hash)?;
-                    let pos_transaction = from_pow_transaction(client, &pow_transaction)?;
+                    let pos_transaction = from_pow_transaction(&pow_transaction)?;
                     network_id = pos_transaction.network_id;
 
                     assert_eq!(
-                        pow_transaction.block_hash,
+                        pow_transaction.hash,
                         pos_transaction.hash::<Blake2bHash>().to_hex()
                     );
                     transactions.push(ExecutedTransaction::Ok(pos_transaction));
