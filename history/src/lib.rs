@@ -1,7 +1,7 @@
 use nimiq_blockchain::HistoryStore;
 use nimiq_database::{
     traits::{Database, WriteTransaction},
-    volatile::VolatileDatabase,
+    DatabaseProxy,
 };
 use nimiq_hash::{Blake2bHash, Hash};
 use nimiq_keys::{Address, AddressParseError};
@@ -101,14 +101,17 @@ fn from_pow_transaction(pow_transaction: &PoWTransaction) -> Result<Transaction,
 
 /// Gets the PoS genesis history root by getting all of the transactions from the
 /// PoW chain and building a single history tree.
-pub fn get_history_root(client: &Client, cutting_pow_block: Block) -> Result<String, Error> {
-    let env = VolatileDatabase::new(20).unwrap();
+pub fn get_history_root(
+    client: &Client,
+    cutting_pow_block: Block,
+    env: DatabaseProxy,
+) -> Result<String, Error> {
     let history_store = HistoryStore::new(env.clone());
     let mut txn = env.write_transaction();
     for block_height in 1..cutting_pow_block.number {
         log::debug!(
             block_height,
-            "Processing block, progress {:.2}%",
+            "Processing block, progress={:.2}%",
             block_height as f32 / cutting_pow_block.number as f32 * 100f32
         );
         let mut transactions = vec![];
@@ -116,6 +119,9 @@ pub fn get_history_root(client: &Client, cutting_pow_block: Block) -> Result<Str
         let mut network_id = NetworkId::Main;
         match block.transactions {
             PoWTransactionSequence::BlockHashes(hashes) => {
+                if hashes.is_empty() {
+                    continue;
+                }
                 for hash in hashes {
                     log::trace!(hash, "Processing transaction");
                     let pow_transaction = client.get_transaction_by_hash(&hash)?;

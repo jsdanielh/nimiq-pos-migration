@@ -7,6 +7,7 @@ description = "Migrates the Nimiq PoW history to Nimiq PoS"
 [dependencies]
 clap = { version = "4.3", features = ["derive"] }
 hex = "0.4"
+humantime = "2.1"
 jsonrpc = "0.16"
 log = { package = "tracing", version = "0.1", features = ["log"] }
 nimiq-blockchain = { git = "https://github.com/nimiq/core-rs-albatross.git", branch = "jsdanielh/transaction" }
