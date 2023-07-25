@@ -66,8 +66,12 @@ fn main() {
     let network_id = if args.testnet { "test" } else { "main" };
     let db_name = format!("{network_id}-history-consensus").to_lowercase();
     let db_path = Path::new(&args.db_path).join(db_name);
-    let env = match MdbxDatabase::new_with_max_readers(db_path.clone(), 1024 * 1024 * 1024, 20, 600)
-    {
+    let env = match MdbxDatabase::new_with_max_readers(
+        db_path.clone(),
+        100 * 1024 * 1024 * 1024,
+        20,
+        600,
+    ) {
         Ok(db) => db,
         Err(e) => {
             log::error!(error = ?e, "Failed to create database");

@@ -1,3 +1,6 @@
+use std::fmt::Write;
+
+use indicatif::{HumanDuration, ProgressBar, ProgressState, ProgressStyle};
 use nimiq_blockchain::HistoryStore;
 use nimiq_database::{
     traits::{Database, WriteTransaction},
@@ -107,13 +110,29 @@ pub fn get_history_root(
     env: DatabaseProxy,
 ) -> Result<String, Error> {
     let history_store = HistoryStore::new(env.clone());
-    let mut txn = env.write_transaction();
+
+    // Setup progress bar
+    let pb = ProgressBar::new(cutting_pow_block.number as u64);
+    pb.set_style(
+        ProgressStyle::with_template(
+            "{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] Block: {pos}, {percent}% (~{eta} remaining)",
+        )
+        .unwrap()
+        .with_key("eta", |state: &ProgressState, w: &mut dyn Write| {
+            write!(w, "{}", HumanDuration(state.eta())).unwrap()
+        })
+        .progress_chars("#>-"),
+    );
+
+    // Now get transactions of each block and add it to the PoS history store
     for block_height in 1..cutting_pow_block.number {
-        log::debug!(
-            block_height,
-            "Processing block, progress={:.2}%",
-            block_height as f32 / cutting_pow_block.number as f32 * 100f32
-        );
+        // Fixme: This is currently not supported as it uses epoch_at from the block_height
+        //if !history_store
+        //    .get_block_transactions(block_height, None)
+        //    .is_empty()
+        //{
+        //    continue;
+        //};
         let mut transactions = vec![];
         let block = client.get_block_by_number(block_height, false)?;
         let mut network_id = NetworkId::Main;
@@ -137,6 +156,7 @@ pub fn get_history_root(
             }
             PoWTransactionSequence::Transactions(_) => panic!("Unexpected transaction type"),
         }
+        let mut txn = env.write_transaction();
         history_store.add_to_history(
             &mut txn,
             0,
@@ -148,8 +168,9 @@ pub fn get_history_root(
                 [].to_vec(),
             ),
         );
+        txn.commit();
+        pb.set_position(block_height as u64);
     }
-    txn.commit();
     history_store
         .get_history_tree_root(0, None)
         .ok_or(Error::HistoryRootError)
