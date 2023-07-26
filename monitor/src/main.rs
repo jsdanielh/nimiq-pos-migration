@@ -1,7 +1,8 @@
 use clap::Parser;
 use log::{error, info};
+use nimiq_primitives::policy::Policy;
 use nimiq_rpc::{
-    primitives::{Address, OutgoingTransaction, Transaction},
+    primitives::{OutgoingTransaction, Transaction},
     Client,
 };
 use simple_logger::SimpleLogger;
@@ -10,8 +11,8 @@ use std::{collections::HashMap, process::exit, thread::sleep, time::Duration};
 const ACTIVATION_HEIGHT: u64 = 100;
 
 pub enum ValidatorsReadiness {
-    NotReady,
-    Ready(u32),
+    NotReady(u16),
+    Ready(u16),
 }
 
 /// Command line arguments for the binary
@@ -22,10 +23,6 @@ struct Args {
     #[arg(short, long)]
     rpc: String,
 
-    /// The account address that will pay the ready transaction
-    #[arg(short, long)]
-    sender: String,
-
     /// The validator address
     #[arg(short, long)]
     validator: String,
@@ -33,56 +30,95 @@ struct Args {
 
 // Sends a transaction to the Nimiq PoW chain to report that we are ready
 // The transaction format is defined as follow:
-//   Sender: Any address which has the minium balance needed to send this txn
-//           This address needs to be imported into the RPC server wallet.
-//   Recipient: The Validator address.
-//              This implies that these funds can be later recovered.
+//   Sender: Validator address
+//   Recipient: Burn address
 //   Value: 100 Lunas
-//   Data: This field is used to prove that the validator owner is the one who is
-//         sending this transaction. To prove its identity, it needs to sign the
-//         validator address using his private key. In this way, when we check for
-//         validator readiness we know that the validator owner is ready
+//   Data: TBD
 //
-// It is possible to signal that a validator is no longer ready by reversing this transaction:
-// Removing all funds from the validator address acount.
 //
-fn generate_ready_tx(sender: String, validator: String) -> OutgoingTransaction {
-    info!(
-        " Generating ready transaction, from {} to {}",
-        sender, validator
-    );
+fn generate_ready_tx(validator: String) -> OutgoingTransaction {
+    info!(" Generating ready transaction, from {} ", validator);
     let tx = OutgoingTransaction {
-        from: sender,
-        to: validator,
+        from: validator,
+        to: "NQ07 0000 0000 0000 0000 0000 0000 0000 0000".to_string(),
         value: 100, //Lunas
         fee: 0,
-        //data: "signature(address)"
     };
 
     tx
 }
 
 // Checks if enough validators are ready
-// If thats the case, the next election block candidate is returned
+// If thats the case, the number of slots which are ready are returned
 fn check_validators_ready(client: &Client) -> ValidatorsReadiness {
-    // First we need to obtain the validator list for the first epoch.
-    let validator_list: Vec<Address> = Vec::new();
-    let mut validator_transactions = HashMap::new();
+    // First we need to obtain the validator list, along with the slot allocation for the first epoch.
+    let mut validator_list = HashMap::new();
+
+    // This is a mock list for testing purposes(for now)
+    // The validator address and the slots assigned to each address
+    validator_list.insert(
+        "NQ28 GSPY V07Q DJTK Y8TG DFYD KR5Q 9KBF HV5A".to_string(),
+        100 as u16,
+    );
+
+    validator_list.insert(
+        "NQ56 7L0M GQPS GNCU VGGT LV4S 4HHN F701 2DEF".to_string(),
+        412 as u16,
+    );
+
+    let mut ready_validators = Vec::new();
 
     // Now we need to collect all the transations for each validator
-    for validator in validator_list {
-        if let Ok(transactions) = client.get_transactions_by_address(&validator.address, 10) {
-            // We only keep the ones past the activation window
+    for (validator, _slots) in &validator_list {
+        if let Ok(transactions) = client.get_transactions_by_address(&validator, 10) {
+            log::info!(
+                "There are {} transactions from {}",
+                transactions.len(),
+                validator
+            );
+            // We only keep the ones past the activation window that met the activation criteria
             let filtered_txns: Vec<Transaction> = transactions
                 .into_iter()
-                .filter(|txn| txn.block_number > ACTIVATION_HEIGHT)
+                .filter(|txn| {
+                    // Here we filter by the readiness criteria, TBD
+                    (txn.block_number > ACTIVATION_HEIGHT)
+                        && (txn.to_address
+                            == "NQ07 0000 0000 0000 0000 0000 0000 0000 0000".to_string())
+                        && txn.value == 1
+                })
                 .collect();
-            // We also need to verify that ech txn was signed by each validator owner
-            validator_transactions.insert(validator.address, filtered_txns);
+            log::info!(
+                "Transactions that met the readiness criteria: {}",
+                filtered_txns.len()
+            );
+            if filtered_txns.len() >= 1 {
+                ready_validators.push(validator);
+            }
         }
     }
 
-    ValidatorsReadiness::NotReady
+    // Now we need to see if 2f+1 validator are ready, in order to select the election block candidate.
+    let mut ready_slots = 0;
+
+    for ready_validator in ready_validators {
+        log::info!(" Validator ready: {}", ready_validator);
+        ready_slots += validator_list
+            .get(ready_validator)
+            .expect("The validator must be present");
+    }
+
+    log::info!(" We have {} slots ready", ready_slots);
+
+    if ready_slots >= Policy::TWO_F_PLUS_ONE {
+        log::info!(" Enough validators are ready to start the PoS Chain! ");
+        ValidatorsReadiness::Ready(ready_slots)
+    } else {
+        log::info!(
+            " Not enough validators are ready, we need at least {} slots ",
+            Policy::TWO_F_PLUS_ONE
+        );
+        ValidatorsReadiness::NotReady(ready_slots)
+    }
 }
 
 fn main() {
@@ -93,7 +129,6 @@ fn main() {
 
     let args = Args::parse();
 
-    //let client = Client::new("http://seed1.nimiq-testnet.com:8648/".to_string());
     let client = Client::new(args.rpc);
 
     loop {
@@ -108,7 +143,7 @@ fn main() {
     }
 
     //Report we are ready to the Nimiq PoW chain:
-    let transaction = generate_ready_tx(args.sender, args.validator);
+    let transaction = generate_ready_tx(args.validator);
 
     match client.send_transaction(&transaction) {
         Ok(_) => info!(" Sent ready transaction to the Nimiq PoW network"),
@@ -123,16 +158,22 @@ fn main() {
     while !validators_ready {
         let validators_status = check_validators_ready(&client);
         match validators_status {
-            ValidatorsReadiness::NotReady => {
-                info!("Validators are not ready yet");
+            ValidatorsReadiness::NotReady(slots) => {
+                info!(
+                    "Not enough validators are ready yet, we have {} slots ready",
+                    slots
+                );
                 validators_ready = false;
                 sleep(Duration::from_secs(10));
                 continue;
             }
-            ValidatorsReadiness::Ready(block_number) => info!(
-                " We found a potential election block candidate {}",
-                block_number
-            ),
+            ValidatorsReadiness::Ready(slots) => {
+                info!(
+                    "Enogh validators are ready to start the PoS chain, we have {} slots ready",
+                    slots
+                );
+                break;
+            }
         }
     }
 }
