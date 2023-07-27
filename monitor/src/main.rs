@@ -41,7 +41,7 @@ fn generate_ready_tx(validator: String) -> OutgoingTransaction {
     let tx = OutgoingTransaction {
         from: validator,
         to: "NQ07 0000 0000 0000 0000 0000 0000 0000 0000".to_string(),
-        value: 100, //Lunas
+        value: 1, //Lunas
         fee: 0,
     };
 
@@ -68,10 +68,12 @@ fn check_validators_ready(client: &Client) -> ValidatorsReadiness {
 
     let mut ready_validators = Vec::new();
 
+    log::info!("Starting to collect transactions from validators...");
+
     // Now we need to collect all the transations for each validator
     for (validator, _slots) in &validator_list {
         if let Ok(transactions) = client.get_transactions_by_address(&validator, 10) {
-            log::info!(
+            info!(
                 "There are {} transactions from {}",
                 transactions.len(),
                 validator
@@ -87,7 +89,7 @@ fn check_validators_ready(client: &Client) -> ValidatorsReadiness {
                         && txn.value == 1
                 })
                 .collect();
-            log::info!(
+            info!(
                 "Transactions that met the readiness criteria: {}",
                 filtered_txns.len()
             );
@@ -101,19 +103,23 @@ fn check_validators_ready(client: &Client) -> ValidatorsReadiness {
     let mut ready_slots = 0;
 
     for ready_validator in ready_validators {
-        log::info!(" Validator ready: {}", ready_validator);
-        ready_slots += validator_list
+        let validator_slots = validator_list
             .get(ready_validator)
             .expect("The validator must be present");
+        info!(
+            " Validator {} is ready with {} slots.",
+            ready_validator, validator_slots
+        );
+        ready_slots += validator_slots;
     }
 
-    log::info!(" We have {} slots ready", ready_slots);
+    info!(" We have {} total slots ready", ready_slots);
 
     if ready_slots >= Policy::TWO_F_PLUS_ONE {
-        log::info!(" Enough validators are ready to start the PoS Chain! ");
+        info!(" Enough validators are ready to start the PoS Chain! ");
         ValidatorsReadiness::Ready(ready_slots)
     } else {
-        log::info!(
+        info!(
             " Not enough validators are ready, we need at least {} slots ",
             Policy::TWO_F_PLUS_ONE
         );
@@ -153,9 +159,7 @@ fn main() {
         }
     }
 
-    let mut validators_ready = false;
-
-    while !validators_ready {
+    loop {
         let validators_status = check_validators_ready(&client);
         match validators_status {
             ValidatorsReadiness::NotReady(slots) => {
@@ -163,17 +167,37 @@ fn main() {
                     "Not enough validators are ready yet, we have {} slots ready",
                     slots
                 );
-                validators_ready = false;
                 sleep(Duration::from_secs(10));
                 continue;
             }
             ValidatorsReadiness::Ready(slots) => {
                 info!(
-                    "Enogh validators are ready to start the PoS chain, we have {} slots ready",
+                    "Enough validators are ready to start the PoS chain, we have {} slots ready",
                     slots
                 );
                 break;
             }
+        }
+    }
+
+    // Now that we have enough validators ready, we need to pick the next election block candidate
+
+    let candidate =
+        Policy::election_block_after(client.block_number().unwrap().try_into().unwrap()) as u64;
+
+    info!("The next election candidate is {}", candidate);
+
+    loop {
+        if candidate <= client.block_number().unwrap() {
+            info!("We are ready to start the migration process.. ");
+            break;
+        } else {
+            info!(
+                "Election candidate {}, current height {}",
+                candidate,
+                client.block_number().unwrap()
+            );
+            sleep(Duration::from_secs(100));
         }
     }
 }
