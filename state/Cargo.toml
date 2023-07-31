@@ -10,12 +10,12 @@ hex = "0.4"
 humantime = "2.1"
 jsonrpc = "0.16"
 log = { package = "tracing", version = "0.1", features = ["log"] }
-nimiq-genesis-builder = { git = "https://github.com/nimiq/core-rs-albatross.git", branch = "jsdanielh/genesis" }
-nimiq-hash = { git = "https://github.com/nimiq/core-rs-albatross.git", branch = "jsdanielh/genesis" }
-nimiq-keys = { git = "https://github.com/nimiq/core-rs-albatross.git", branch = "jsdanielh/genesis" }
-nimiq-primitives = { git = "https://github.com/nimiq/core-rs-albatross.git", branch = "jsdanielh/genesis" }
-nimiq-transaction = { git = "https://github.com/nimiq/core-rs-albatross.git", branch = "jsdanielh/genesis" }
-nimiq-vrf = { git = "https://github.com/nimiq/core-rs-albatross.git", branch = "jsdanielh/genesis" }
+nimiq-genesis-builder = { git = "https://github.com/nimiq/core-rs-albatross.git" }
+nimiq-hash = { git = "https://github.com/nimiq/core-rs-albatross.git" }
+nimiq-keys = { git = "https://github.com/nimiq/core-rs-albatross.git" }
+nimiq-primitives = { git = "https://github.com/nimiq/core-rs-albatross.git" }
+nimiq-transaction = { git = "https://github.com/nimiq/core-rs-albatross.git" }
+nimiq-vrf = { git = "https://github.com/nimiq/core-rs-albatross.git" }
 nimiq_rpc = { git = "https://github.com/jsdanielh/rust-client.git" }
 serde_json = "1.0"
 thiserror = "1.0"

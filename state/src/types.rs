@@ -1,4 +1,5 @@
 use nimiq_genesis_builder::config::{GenesisAccount, GenesisHTLC, GenesisVestingContract};
+use nimiq_primitives::coin::Coin;
 
 /// Genesis accounts for the genesis state
 #[derive(Debug)]
@@ -11,4 +12,13 @@ pub struct GenesisAccounts {
 
     /// HTLC accounts for the genesis state.
     pub htlc_accounts: Vec<GenesisHTLC>,
+}
+
+/// Genesis validators for the genesis state
+pub struct GenesisValidator {
+    /// Inner genesis validator information
+    pub validator: nimiq_genesis_builder::config::GenesisValidator,
+
+    /// Validator stake
+    pub balance: Coin,
 }

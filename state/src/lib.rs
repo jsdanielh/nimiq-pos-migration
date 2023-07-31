@@ -4,7 +4,7 @@ use std::{fs, str::FromStr, time::Duration, vec};
 
 use hex::FromHexError;
 use nimiq_genesis_builder::config::{
-    GenesisAccount, GenesisConfig, GenesisHTLC, GenesisValidator, GenesisVestingContract,
+    GenesisAccount, GenesisConfig, GenesisHTLC, GenesisVestingContract,
 };
 use nimiq_hash::Blake2bHash;
 use nimiq_keys::{Address, AddressParseError};
@@ -21,7 +21,7 @@ use nimiq_vrf::VrfSeed;
 use thiserror::Error;
 use time::{error::ComponentRange, OffsetDateTime};
 
-use crate::types::GenesisAccounts;
+use crate::types::{GenesisAccounts, GenesisValidator};
 
 // POW estimated block time in milliseconds
 const POW_BLOCK_TIME_MS: u64 = 60 * 1000; // 1 min
@@ -213,6 +213,7 @@ pub fn get_pos_genesis(
         vrf_seed: Some(vrf_seed.clone()),
         parent_election_hash: Some(parent_election_hash),
         parent_hash: Some(parent_hash),
+        block_number: cutting_block.number,
         timestamp: Some(OffsetDateTime::from_unix_timestamp(pos_genesis_ts as i64)?),
         validators: [].to_vec(),
         stakers: [].to_vec(),
