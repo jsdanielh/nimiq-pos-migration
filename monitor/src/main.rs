@@ -9,7 +9,7 @@ use simple_logger::SimpleLogger;
 use std::{collections::HashMap, process::exit, thread::sleep, time::Duration};
 
 const ACTIVATION_HEIGHT: u64 = 100;
-
+const BURN_ADDRESS: &str = "NQ07 0000 0000 0000 0000 0000 0000 0000 0000";
 pub enum ValidatorsReadiness {
     NotReady(u16),
     Ready(u16),
@@ -40,7 +40,7 @@ fn generate_ready_tx(validator: String) -> OutgoingTransaction {
     info!(" Generating ready transaction, from {} ", validator);
     let tx = OutgoingTransaction {
         from: validator,
-        to: "NQ07 0000 0000 0000 0000 0000 0000 0000 0000".to_string(),
+        to: BURN_ADDRESS.to_string(),
         value: 1, //Lunas
         fee: 0,
     };
@@ -84,8 +84,7 @@ fn check_validators_ready(client: &Client) -> ValidatorsReadiness {
                 .filter(|txn| {
                     // Here we filter by the readiness criteria, TBD
                     (txn.block_number > ACTIVATION_HEIGHT)
-                        && (txn.to_address
-                            == "NQ07 0000 0000 0000 0000 0000 0000 0000 0000".to_string())
+                        && (txn.to_address == BURN_ADDRESS.to_string())
                         && txn.value == 1
                 })
                 .collect();
@@ -134,6 +133,9 @@ fn main() {
         .unwrap();
 
     let args = Args::parse();
+    let validator_address = args.validator.clone();
+
+    info!(" This is our validator address: {}", validator_address);
 
     let client = Client::new(args.rpc);
 
@@ -148,18 +150,56 @@ fn main() {
         sleep(Duration::from_secs(10));
     }
 
-    //Report we are ready to the Nimiq PoW chain:
-    let transaction = generate_ready_tx(args.validator);
-
-    match client.send_transaction(&transaction) {
-        Ok(_) => info!(" Sent ready transaction to the Nimiq PoW network"),
-        Err(err) => {
-            error!(" Failed sending ready transaction {}", err);
-            exit(1);
-        }
-    }
-
+    let mut reported_ready = false;
     loop {
+        let current_height = client.block_number().unwrap();
+        info!(" Current block height: {}", current_height);
+
+        let next_election_block =
+            Policy::election_block_after(current_height.try_into().unwrap()) as u64;
+        let mut previous_election_block =
+            Policy::election_block_before(current_height.try_into().unwrap()) as u64;
+
+        if !reported_ready {
+            // Obtain all the transactions that we have sent previously.
+            if let Ok(transactions) = client.get_transactions_by_address(&validator_address, 10) {
+                if previous_election_block < ACTIVATION_HEIGHT {
+                    previous_election_block = ACTIVATION_HEIGHT;
+                }
+
+                let filtered_txns: Vec<Transaction> = transactions
+                    .into_iter()
+                    .filter(|txn| {
+                        // Here we filter by current epoch
+                        (txn.block_number > previous_election_block)
+                            && (txn.block_number < next_election_block)
+                            && (txn.to_address == BURN_ADDRESS.to_string())
+                            && txn.value == 1
+                    })
+                    .collect();
+
+                // If we havent reported we are ready in the current epoch, then we sent our ready txn
+                if filtered_txns.len() == 0 {
+                    //Report we are ready to the Nimiq PoW chain:
+                    let transaction = generate_ready_tx(validator_address.clone());
+
+                    match client.send_transaction(&transaction) {
+                        Ok(_) => {
+                            info!(" Sent ready transaction to the Nimiq PoW network");
+                            reported_ready = true;
+                        }
+                        Err(err) => {
+                            error!(" Failed sending ready transaction {}", err);
+                            exit(1);
+                        }
+                    }
+                } else {
+                    log::info!(" We found a ready transaction from our validator");
+                    reported_ready = true;
+                }
+            }
+        }
+
         let validators_status = check_validators_ready(&client);
         match validators_status {
             ValidatorsReadiness::NotReady(slots) => {
@@ -167,8 +207,6 @@ fn main() {
                     "Not enough validators are ready yet, we have {} slots ready",
                     slots
                 );
-                sleep(Duration::from_secs(10));
-                continue;
             }
             ValidatorsReadiness::Ready(slots) => {
                 info!(
@@ -177,6 +215,15 @@ fn main() {
                 );
                 break;
             }
+        }
+
+        sleep(Duration::from_secs(60));
+
+        if next_election_block
+            != Policy::election_block_after(client.block_number().unwrap().try_into().unwrap())
+                as u64
+        {
+            reported_ready = false;
         }
     }
 
