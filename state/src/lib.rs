@@ -157,7 +157,7 @@ pub fn get_validators(
     let mut validators = vec![];
 
     // Remove any transaction outside of the validator registration window
-    transactions.retain(|txn| (start_block.number..=end_block.number).contains(&txn.block_number));
+    transactions.retain(|txn| (start_block.number..end_block.number).contains(&txn.block_number));
 
     // Group all transactions by its sender
     for txn in transactions {
