@@ -65,7 +65,7 @@ fn main() {
     let genesis_delay = Duration::from_secs(args.delay * 60);
     let start = Instant::now();
     let genesis_config =
-        match get_pos_genesis(client, args.hash, args.height, &vrf_seed, genesis_delay) {
+        match get_pos_genesis(&client, args.hash, args.height, &vrf_seed, genesis_delay) {
             Ok(config) => config,
             Err(error) => {
                 log::error!(?error, "Failed to build PoS genesis");

@@ -1,5 +1,42 @@
+use hex::FromHexError;
 use nimiq_genesis_builder::config::{GenesisAccount, GenesisHTLC, GenesisVestingContract};
+use nimiq_keys::AddressParseError;
 use nimiq_primitives::coin::Coin;
+use nimiq_primitives::coin::CoinConvertError;
+use thiserror::Error;
+use time::error::ComponentRange;
+
+/// Error types that can be returned
+#[derive(Error, Debug)]
+pub enum Error {
+    /// RPC error
+    #[error("RPC error: {0}")]
+    Rpc(#[from] jsonrpc::Error),
+    /// Unknown PoW block
+    #[error("Unknown PoW block")]
+    UnknownBlock,
+    /// IO error
+    #[error("I/O error: {0}")]
+    IO(#[from] std::io::Error),
+    /// Serialization error
+    #[error("Serialization: {0}")]
+    Serialization(#[from] toml::ser::Error),
+    /// Address parsing error
+    #[error("Failed to parse Nimiq address")]
+    Address(#[from] AddressParseError),
+    /// Coin conversion error
+    #[error("Failed to convert to coin")]
+    Coin(#[from] CoinConvertError),
+    /// Hex conversion error
+    #[error("Failed to decode string as hex")]
+    Hex(#[from] FromHexError),
+    /// Invalid value
+    #[error("Invalid value")]
+    InvalidValue,
+    /// Invalid time
+    #[error("Invalid timestamp")]
+    Timestamp(#[from] ComponentRange),
+}
 
 /// Genesis accounts for the genesis state
 #[derive(Debug)]
@@ -15,6 +52,7 @@ pub struct GenesisAccounts {
 }
 
 /// Genesis validators for the genesis state
+#[derive(Clone, Debug)]
 pub struct GenesisValidator {
     /// Inner genesis validator information
     pub validator: nimiq_genesis_builder::config::GenesisValidator,

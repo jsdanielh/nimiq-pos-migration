@@ -1,62 +1,32 @@
 pub mod types;
 
-use std::{fs, str::FromStr, time::Duration, vec};
+use std::{collections::HashMap, fs, str::FromStr, time::Duration, vec};
 
-use hex::FromHexError;
+use nimiq_bls::PublicKey as BlsPublicKey;
 use nimiq_genesis_builder::config::{
     GenesisAccount, GenesisConfig, GenesisHTLC, GenesisVestingContract,
 };
 use nimiq_hash::Blake2bHash;
-use nimiq_keys::{Address, AddressParseError};
-use nimiq_primitives::coin::{Coin, CoinConvertError};
+use nimiq_keys::{Address, PublicKey as SchnorrPublicKey};
+use nimiq_primitives::coin::Coin;
 use nimiq_rpc::{
     primitives::{
-        BasicAccount as PoWBasicAccount, Block, HTLCAccount as PoWHTLCAccount,
+        BasicAccount as PoWBasicAccount, Block, HTLCAccount as PoWHTLCAccount, TransactionDetails,
         VestingAccount as PoWVestingAccount,
     },
     Client,
 };
+use nimiq_serde::Deserialize;
 use nimiq_transaction::account::htlc_contract::{AnyHash, AnyHash32, AnyHash64};
 use nimiq_vrf::VrfSeed;
-use thiserror::Error;
-use time::{error::ComponentRange, OffsetDateTime};
+use time::OffsetDateTime;
 
-use crate::types::{GenesisAccounts, GenesisValidator};
+use crate::types::{Error, GenesisAccounts, GenesisValidator};
 
 // POW estimated block time in milliseconds
 const POW_BLOCK_TIME_MS: u64 = 60 * 1000; // 1 min
-
-/// Error types that can be returned
-#[derive(Error, Debug)]
-pub enum Error {
-    /// RPC error
-    #[error("RPC error: {0}")]
-    Rpc(#[from] jsonrpc::Error),
-    /// Unknown PoW block
-    #[error("Unknown PoW block")]
-    UnknownBlock,
-    /// IO error
-    #[error("I/O error: {0}")]
-    IO(#[from] std::io::Error),
-    /// Serialization error
-    #[error("Serialization: {0}")]
-    Serialization(#[from] toml::ser::Error),
-    /// Address parsing error
-    #[error("Failed to parse Nimiq address")]
-    Address(#[from] AddressParseError),
-    /// Coin conversion error
-    #[error("Failed to convert to coin")]
-    Coin(#[from] CoinConvertError),
-    /// Hex conversion error
-    #[error("Failed to decode string as hex")]
-    Hex(#[from] FromHexError),
-    /// Invalid value
-    #[error("Invalid value")]
-    InvalidValue,
-    /// Invalid time
-    #[error("Invalid timestamp")]
-    Timestamp(#[from] ComponentRange),
-}
+                                          // PoS validator deposit
+const VALIDATOR_DEPOSIT: u64 = 10;
 
 fn pos_basic_account_from_account(pow_account: &PoWBasicAccount) -> Result<GenesisAccount, Error> {
     let address = Address::from_user_friendly_address(&pow_account.address)?;
@@ -133,7 +103,7 @@ fn pos_anyhash_from_hash_root(hash_root: &str, algorithm: u8) -> Result<AnyHash,
 /// Gets the PoS genesis history root by getting all of the transactions from the
 /// PoW chain and building a single history tree.
 pub fn get_accounts(
-    client: Client,
+    client: &Client,
     cutting_block: &Block,
     pos_genesis_ts: u64,
 ) -> Result<GenesisAccounts, Error> {
@@ -178,15 +148,131 @@ pub fn get_accounts(
 /// Gets the PoS genesis history root by getting all of the transactions from the
 /// PoW chain and building a single history tree.
 pub fn get_validators(
-    client: Client,
-    cutting_block: Block,
+    client: &Client,
+    cutting_block: &Block,
 ) -> Result<Vec<GenesisValidator>, Error> {
-    unimplemented!();
+    let mut txns_by_sender = HashMap::<String, Vec<TransactionDetails>>::new();
+    let mut transactions =
+        client.get_transactions_by_address(&Address::burn_address().to_string(), u16::MAX)?;
+    let mut possible_validators = HashMap::new();
+    let mut validators = vec![];
+
+    // Remove any transaction after the cutting block number
+    transactions.retain(|txn| txn.block_number <= cutting_block.number);
+
+    // Group all transactions by its sender
+    for txn in transactions {
+        txns_by_sender
+            .entry(txn.from_address.clone())
+            .and_modify(|txns| txns.push(txn.clone()))
+            .or_insert(vec![txn]);
+    }
+    // First look for the 6 transactions that carries the validator data
+    for (_, txns) in txns_by_sender.iter() {
+        let mut signing_key = SchnorrPublicKey::default();
+        let mut address: Address = Address::default();
+        let mut voting_key = vec![vec![0u8]; 5];
+        let mut txns_parsed = [false; 6];
+        for txn in txns {
+            if let Some(data_hex) = &txn.data {
+                if let Ok(data) = hex::decode(data_hex) {
+                    if data.len() < 64 {
+                        continue;
+                    }
+                    match data[0] {
+                        1u8 => {
+                            if let Ok(sk) = SchnorrPublicKey::from_bytes(&data[12..44]) {
+                                if let Ok(addr) = Address::deserialize_from_vec(&data[44..]) {
+                                    signing_key = sk;
+                                    address = addr;
+                                    txns_parsed[0] = true;
+                                }
+                            }
+                        }
+                        2u8 => {
+                            voting_key[0] = data[7..].to_vec();
+                            txns_parsed[1] = true;
+                        }
+                        3u8 => {
+                            voting_key[1] = data[7..].to_vec();
+                            txns_parsed[2] = true;
+                        }
+                        4u8 => {
+                            voting_key[2] = data[7..].to_vec();
+                            txns_parsed[3] = true;
+                        }
+                        5u8 => {
+                            voting_key[3] = data[7..].to_vec();
+                            txns_parsed[4] = true;
+                        }
+                        6u8 => {
+                            voting_key[4] = data[7..].to_vec();
+                            txns_parsed[5] = true;
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+
+        // If we already parsed the 6 transactions, we just need to parse the BLS public key to see if we have found a possible validator
+        if txns_parsed.into_iter().all(|parsed| parsed) {
+            let mut voting_key_bytes = vec![];
+            for mut vk in voting_key {
+                voting_key_bytes.append(&mut vk);
+            }
+            if let Ok(voting_key) = BlsPublicKey::deserialize_from_vec(&voting_key_bytes) {
+                let possible_validator = GenesisValidator {
+                    balance: Coin::ZERO,
+                    validator: nimiq_genesis_builder::config::GenesisValidator {
+                        validator_address: address.clone(),
+                        signing_key,
+                        voting_key,
+                        reward_address: address.clone(),
+                    },
+                };
+                log::debug!(%address, "Found possible validator");
+                possible_validators.insert(address, possible_validator);
+            } else {
+                log::warn!(
+                    %address,
+                    "Possible validator with invalid BLS public key registered"
+                );
+            }
+        }
+    }
+
+    // Now look for the commit transaction
+    for (_, txns) in txns_by_sender.iter() {
+        for txn in txns.iter().filter(|&txn| txn.value >= VALIDATOR_DEPOSIT) {
+            if let Some(data) = &txn.data {
+                if let Ok(address_bytes) = hex::decode(data) {
+                    if let Ok(address_str) = std::str::from_utf8(&address_bytes) {
+                        if let Ok(address) = Address::from_str(address_str) {
+                            if let Some(mut validator) = possible_validators.remove(&address) {
+                                log::info!(%address, "Found commit transaction for validator");
+                                // FixMe: Handle commit transactions larger than the deposit
+                                validator.balance = Coin::from_u64_unchecked(VALIDATOR_DEPOSIT);
+                                validators.push(validator);
+                            } else {
+                                log::warn!(
+                                    %address,
+                                    "Found commit transaction for unknown validator"
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(validators)
 }
 
 /// Gets the genesis config file
 pub fn get_pos_genesis(
-    client: Client,
+    client: &Client,
     block_hash: String,
     block_number: u32,
     vrf_seed: &VrfSeed,
@@ -207,6 +293,10 @@ pub fn get_pos_genesis(
     // The parent hash of the PoS genesis is the hash of cutting block
     let parent_hash = Blake2bHash::from_str(&cutting_block.hash)?;
     let genesis_accounts = get_accounts(client, &cutting_block, pos_genesis_ts)?;
+    let genesis_validators = get_validators(client, &cutting_block)?
+        .into_iter()
+        .map(|validator| validator.validator)
+        .collect();
 
     Ok(GenesisConfig {
         seed_message: Some("Albatross TestNet".to_string()),
@@ -215,7 +305,7 @@ pub fn get_pos_genesis(
         parent_hash: Some(parent_hash),
         block_number: cutting_block.number,
         timestamp: Some(OffsetDateTime::from_unix_timestamp(pos_genesis_ts as i64)?),
-        validators: [].to_vec(),
+        validators: genesis_validators,
         stakers: [].to_vec(),
         basic_accounts: genesis_accounts.basic_accounts,
         vesting_accounts: genesis_accounts.vesting_accounts,
