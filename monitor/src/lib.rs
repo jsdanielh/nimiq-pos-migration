@@ -31,6 +31,30 @@ pub fn generate_ready_tx(validator: String) -> OutgoingTransaction {
     tx
 }
 
+// Checks if we have seen a ready transaction from a validator in the specified range
+pub fn get_ready_txns(
+    client: &Client,
+    validator: String,
+    start_block: u64,
+    end_block: u64,
+) -> Vec<Transaction> {
+    if let Ok(transactions) = client.get_transactions_by_address(&validator, 10) {
+        let filtered_txns: Vec<Transaction> = transactions
+            .into_iter()
+            .filter(|txn| {
+                // Here we filter by current epoch
+                (txn.block_number > start_block)
+                    && (txn.block_number < end_block)
+                    && (txn.to_address == BURN_ADDRESS.to_string())
+                    && txn.value == 1
+            })
+            .collect();
+        filtered_txns
+    } else {
+        Vec::new()
+    }
+}
+
 // Sends a transaction into the Nimiq PoW chain
 pub fn send_tx(client: &Client, transaction: OutgoingTransaction) -> Result<(), Error> {
     match client.send_transaction(&transaction) {

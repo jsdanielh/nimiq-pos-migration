@@ -1,10 +1,10 @@
 use clap::Parser;
 use log::info;
 use nimiq_primitives::policy::Policy;
-use nimiq_rpc::{primitives::Transaction, Client};
+use nimiq_rpc::Client;
 use pow_monitor::{
-    check_validators_ready, generate_ready_tx, send_tx,
-    types::{ValidatorsReadiness, ACTIVATION_HEIGHT, BURN_ADDRESS},
+    check_validators_ready, generate_ready_tx, get_ready_txns, send_tx,
+    types::{ValidatorsReadiness, ACTIVATION_HEIGHT},
 };
 use simple_logger::SimpleLogger;
 use std::{process::exit, thread::sleep, time::Duration};
@@ -56,37 +56,30 @@ fn main() {
         let mut previous_election_block =
             Policy::election_block_before(current_height.try_into().unwrap()) as u64;
 
+        if previous_election_block < ACTIVATION_HEIGHT {
+            previous_election_block = ACTIVATION_HEIGHT;
+        }
+
         if !reported_ready {
             // Obtain all the transactions that we have sent previously.
-            if let Ok(transactions) = client.get_transactions_by_address(&validator_address, 10) {
-                if previous_election_block < ACTIVATION_HEIGHT {
-                    previous_election_block = ACTIVATION_HEIGHT;
+            let transactions = get_ready_txns(
+                &client,
+                validator_address.clone(),
+                previous_election_block,
+                next_election_block,
+            );
+
+            if transactions.len() == 0 {
+                //Report we are ready to the Nimiq PoW chain:
+                let transaction = generate_ready_tx(validator_address.clone());
+
+                match send_tx(&client, transaction) {
+                    Ok(_) => reported_ready = true,
+                    Err(_) => exit(1),
                 }
-
-                let filtered_txns: Vec<Transaction> = transactions
-                    .into_iter()
-                    .filter(|txn| {
-                        // Here we filter by current epoch
-                        (txn.block_number > previous_election_block)
-                            && (txn.block_number < next_election_block)
-                            && (txn.to_address == BURN_ADDRESS.to_string())
-                            && txn.value == 1
-                    })
-                    .collect();
-
-                // If we havent reported we are ready in the current epoch, then we sent our ready txn
-                if filtered_txns.len() == 0 {
-                    //Report we are ready to the Nimiq PoW chain:
-                    let transaction = generate_ready_tx(validator_address.clone());
-
-                    match send_tx(&client, transaction) {
-                        Ok(_) => reported_ready = true,
-                        Err(_) => exit(1),
-                    }
-                } else {
-                    log::info!(" We found a ready transaction from our validator");
-                    reported_ready = true;
-                }
+            } else {
+                log::info!(" We found a ready transaction from our validator");
+                reported_ready = true;
             }
         }
 
