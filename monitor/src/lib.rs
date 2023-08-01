@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use log::{error, info};
 use nimiq_primitives::policy::Policy;
 use nimiq_rpc::{
-    primitives::{OutgoingTransaction, Transaction},
+    primitives::{OutgoingTransaction, TransactionDetails},
     Client,
 };
 
@@ -35,11 +35,11 @@ pub fn generate_ready_tx(validator: String) -> OutgoingTransaction {
 pub fn get_ready_txns(
     client: &Client,
     validator: String,
-    start_block: u64,
-    end_block: u64,
-) -> Vec<Transaction> {
+    start_block: u32,
+    end_block: u32,
+) -> Vec<TransactionDetails> {
     if let Ok(transactions) = client.get_transactions_by_address(&validator, 10) {
-        let filtered_txns: Vec<Transaction> = transactions
+        let filtered_txns: Vec<TransactionDetails> = transactions
             .into_iter()
             .filter(|txn| {
                 // Here we filter by current epoch
@@ -100,7 +100,7 @@ pub fn check_validators_ready(client: &Client) -> ValidatorsReadiness {
                 validator
             );
             // We only keep the ones past the activation window that met the activation criteria
-            let filtered_txns: Vec<Transaction> = transactions
+            let filtered_txns: Vec<TransactionDetails> = transactions
                 .into_iter()
                 .filter(|txn| {
                     // Here we filter by the readiness criteria, TBD

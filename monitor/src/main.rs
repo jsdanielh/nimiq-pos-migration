@@ -33,7 +33,7 @@ fn main() {
 
     info!(" This is our validator address: {}", validator_address);
 
-    let client = Client::new(args.rpc);
+    let client = Client::new(&args.rpc);
 
     loop {
         let status = client.consensus().unwrap();
@@ -51,10 +51,9 @@ fn main() {
         let current_height = client.block_number().unwrap();
         info!(" Current block height: {}", current_height);
 
-        let next_election_block =
-            Policy::election_block_after(current_height.try_into().unwrap()) as u64;
+        let next_election_block = Policy::election_block_after(current_height.try_into().unwrap());
         let mut previous_election_block =
-            Policy::election_block_before(current_height.try_into().unwrap()) as u64;
+            Policy::election_block_before(current_height.try_into().unwrap());
 
         if previous_election_block < ACTIVATION_HEIGHT {
             previous_election_block = ACTIVATION_HEIGHT;
@@ -104,7 +103,6 @@ fn main() {
 
         if next_election_block
             != Policy::election_block_after(client.block_number().unwrap().try_into().unwrap())
-                as u64
         {
             reported_ready = false;
         }
@@ -113,7 +111,7 @@ fn main() {
     // Now that we have enough validators ready, we need to pick the next election block candidate
 
     let candidate =
-        Policy::election_block_after(client.block_number().unwrap().try_into().unwrap()) as u64;
+        Policy::election_block_after(client.block_number().unwrap().try_into().unwrap());
 
     info!("The next election candidate is {}", candidate);
 

@@ -9,6 +9,6 @@ clap = { version = "4.3", features = ["derive"] }
 jsonrpc = "0.16"
 log = "0.4.19"
 nimiq-primitives = { git = "https://github.com/nimiq/core-rs-albatross.git",features = ["policy"]}
-nimiq_rpc = "0.1.2"
+nimiq_rpc = "0.1.3"
 simple_logger = "4.2.0"
 thiserror = "1.0"
