@@ -250,8 +250,9 @@ pub fn get_validators(
                         if let Ok(address) = Address::from_str(address_str) {
                             if let Some(mut validator) = possible_validators.remove(&address) {
                                 log::info!(%address, "Found commit transaction for validator");
-                                // FixMe: Handle commit transactions larger than the deposit
-                                validator.balance = Coin::from_u64_unchecked(VALIDATOR_DEPOSIT);
+                                // If the transaction had a value greater than the deposit, the excess will be converted
+                                // to stake by `get_stakers`.
+                                validator.balance = Coin::from_u64_unchecked(txn.value);
                                 validators.push(validator);
                             } else {
                                 log::warn!(
@@ -271,12 +272,81 @@ pub fn get_validators(
 
 /// Gets the set of stakers registered in the PoW chain by parsing the required
 /// transactions within the pre-stake registration window defined by `start_block`
-/// and `end_block`. It uses a set of already registered validators.
+/// and `end_block`. It uses a set of already registered validators and returns an
+/// updated set of validators along with the stakers.
 pub fn get_stakers(
-    _client: &Client,
-    _registered_validators: &[GenesisValidator],
-    _start_block: &Block,
-    _end_block: &Block,
-) -> Result<Vec<GenesisStaker>, Error> {
-    unimplemented!()
+    client: &Client,
+    registered_validators: &[GenesisValidator],
+    start_block: &Block,
+    end_block: &Block,
+) -> Result<(Vec<GenesisStaker>, Vec<GenesisValidator>), Error> {
+    let mut txns_by_sender = HashMap::<String, Vec<TransactionDetails>>::new();
+    let mut transactions =
+        client.get_transactions_by_address(&Address::burn_address().to_string(), u16::MAX)?;
+    let mut validators = HashMap::new();
+    let mut stakers = vec![];
+
+    // Build the hashmap for validators and check if there needs to be a staker for the validator address
+    for validator in registered_validators {
+        validators.insert(
+            validator.validator.validator_address.to_string(),
+            validator.clone(),
+        );
+        if validator.balance > Coin::from_u64_unchecked(VALIDATOR_DEPOSIT) {
+            stakers.push(GenesisStaker {
+                staker_address: validator.validator.validator_address.clone(),
+                balance: validator.balance - Coin::from_u64_unchecked(VALIDATOR_DEPOSIT),
+                delegation: validator.validator.validator_address.clone(),
+            })
+        }
+    }
+
+    // Remove any transaction outside of the validator registration window
+    transactions.retain(|txn| (start_block.number..end_block.number).contains(&txn.block_number));
+
+    // Group all transactions by its sender
+    for txn in transactions {
+        txns_by_sender
+            .entry(txn.from_address.clone())
+            .and_modify(|txns| txns.push(txn.clone()))
+            .or_insert(vec![txn]);
+    }
+
+    // Now look for the commit transaction
+    for (_, txns) in txns_by_sender.iter() {
+        for txn in txns.iter() {
+            if let Some(data) = &txn.data {
+                if let Ok(address_bytes) = hex::decode(data) {
+                    if let Ok(address_str) = std::str::from_utf8(&address_bytes) {
+                        if let Ok(address) = Address::from_str(address_str) {
+                            if let Some(validator) = validators.get_mut(address_str) {
+                                log::info!(address=txn.from_address, validator_address=%address, "Found pre-stake transaction for validator");
+                                if let Ok(staker_address) = Address::from_str(&txn.from_address) {
+                                    let stake = Coin::from_u64_unchecked(txn.value);
+                                    validator.balance += stake;
+                                    stakers.push(GenesisStaker {
+                                        staker_address,
+                                        balance: stake,
+                                        delegation: validator.validator.validator_address.clone(),
+                                    });
+                                } else {
+                                    log::error!(
+                                        staker_address = txn.from_address,
+                                        "Could not build staker address from transaction sender"
+                                    );
+                                }
+                            } else {
+                                log::warn!(
+                                    staker_address = txn.from_address,
+                                    "Found pre-staking transaction for unknown validator, ignored"
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Ok((stakers, validators.into_values().collect()))
 }

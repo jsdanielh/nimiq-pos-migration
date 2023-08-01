@@ -70,7 +70,7 @@ pub fn get_pos_genesis(
     let genesis_accounts = get_accounts(client, &final_block, pos_genesis_ts)?;
     let genesis_validators =
         get_validators(client, &validator_reg_start_block, &prestake_reg_end_block)?;
-    let genesis_stakers = get_stakers(
+    let (genesis_stakers, genesis_validators) = get_stakers(
         client,
         &genesis_validators,
         &prestake_reg_start_block,
