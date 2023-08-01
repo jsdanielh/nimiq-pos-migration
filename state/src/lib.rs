@@ -1,10 +1,10 @@
 pub mod types;
 
-use std::{collections::HashMap, fs, str::FromStr, time::Duration, vec};
+use std::{collections::HashMap, fs, str::FromStr, vec};
 
 use nimiq_bls::PublicKey as BlsPublicKey;
 use nimiq_genesis_builder::config::{
-    GenesisAccount, GenesisConfig, GenesisHTLC, GenesisVestingContract,
+    GenesisAccount, GenesisConfig, GenesisHTLC, GenesisStaker, GenesisVestingContract,
 };
 use nimiq_hash::Blake2bHash;
 use nimiq_keys::{Address, PublicKey as SchnorrPublicKey};
@@ -21,7 +21,7 @@ use nimiq_transaction::account::htlc_contract::{AnyHash, AnyHash32, AnyHash64};
 use nimiq_vrf::VrfSeed;
 use time::OffsetDateTime;
 
-use crate::types::{Error, GenesisAccounts, GenesisValidator};
+use crate::types::{Error, GenesisAccounts, GenesisValidator, PoWRegistrationWindow};
 
 // POW estimated block time in milliseconds
 const POW_BLOCK_TIME_MS: u64 = 60 * 1000; // 1 min
@@ -100,8 +100,8 @@ fn pos_anyhash_from_hash_root(hash_root: &str, algorithm: u8) -> Result<AnyHash,
     }
 }
 
-/// Gets the PoS genesis history root by getting all of the transactions from the
-/// PoW chain and building a single history tree.
+/// Gets the set of the Genesis Accounts by taking a snapshot of the accounts in
+/// a specific block number defined by `cutting_block`.
 pub fn get_accounts(
     client: &Client,
     cutting_block: &Block,
@@ -145,11 +145,13 @@ pub fn get_accounts(
     Ok(genesis_accounts)
 }
 
-/// Gets the PoS genesis history root by getting all of the transactions from the
-/// PoW chain and building a single history tree.
+/// Gets the set of validators registered in the PoW chain by parsing the required
+/// transactions within the validator registration window defined by `start_block` and
+/// `end_block`.
 pub fn get_validators(
     client: &Client,
-    cutting_block: &Block,
+    start_block: &Block,
+    end_block: &Block,
 ) -> Result<Vec<GenesisValidator>, Error> {
     let mut txns_by_sender = HashMap::<String, Vec<TransactionDetails>>::new();
     let mut transactions =
@@ -157,8 +159,8 @@ pub fn get_validators(
     let mut possible_validators = HashMap::new();
     let mut validators = vec![];
 
-    // Remove any transaction after the cutting block number
-    transactions.retain(|txn| txn.block_number <= cutting_block.number);
+    // Remove any transaction outside of the validator registration window
+    transactions.retain(|txn| (start_block.number..=end_block.number).contains(&txn.block_number));
 
     // Group all transactions by its sender
     for txn in transactions {
@@ -270,43 +272,92 @@ pub fn get_validators(
     Ok(validators)
 }
 
+/// Gets the set of stakers registered in the PoW chain by parsing the required
+/// transactions within the pre-stake registration window defined by `start_block`
+/// and `end_block`. It uses a set of already registered validators.
+pub fn get_stakers(
+    _client: &Client,
+    _registered_validators: &[GenesisValidator],
+    _start_block: &Block,
+    _end_block: &Block,
+) -> Result<Vec<GenesisStaker>, Error> {
+    unimplemented!()
+}
+
 /// Gets the genesis config file
 pub fn get_pos_genesis(
     client: &Client,
-    block_hash: String,
-    block_number: u32,
+    pow_reg_window: &PoWRegistrationWindow,
     vrf_seed: &VrfSeed,
-    genesis_delay: Duration,
 ) -> Result<GenesisConfig, Error> {
     // Get block according to arguments and check if it exists
-    let cutting_block = client.get_block_by_hash(&block_hash, false)?;
-    if cutting_block.number != block_number {
-        log::error!(block_number, block_hash, "Could not find provided block");
-        return Err(Error::UnknownBlock);
-    }
+    let validator_reg_start_block = client
+        .get_block_by_hash(&pow_reg_window.validator_start, false)
+        .map_err(|_| {
+            log::error!(
+                pow_reg_window.validator_start,
+                "Could not find provided block"
+            );
+            Error::UnknownBlock
+        })?;
+    let prestake_reg_start_block = client
+        .get_block_by_hash(&pow_reg_window.pre_stake_start, false)
+        .map_err(|_| {
+            log::error!(
+                pow_reg_window.validator_start,
+                "Could not find provided block"
+            );
+            Error::UnknownBlock
+        })?;
+    let prestake_reg_end_block = client
+        .get_block_by_hash(&pow_reg_window.pre_stake_end, false)
+        .map_err(|_| {
+            log::error!(
+                pow_reg_window.validator_start,
+                "Could not find provided block"
+            );
+            Error::UnknownBlock
+        })?;
+    let final_block = client
+        .get_block_by_hash(&pow_reg_window.final_block, false)
+        .map_err(|_| {
+            log::error!(
+                pow_reg_window.validator_start,
+                "Could not find provided block"
+            );
+            Error::UnknownBlock
+        })?;
     let pow_genesis = client.get_block_by_number(1, false)?;
 
     // The PoS genesis timestamp is the cutting block timestamp plus a custom delay
-    let pos_genesis_ts = genesis_delay.as_secs() * 1000 + cutting_block.timestamp as u64;
+    let pos_genesis_ts =
+        pow_reg_window.confirmations as u64 * POW_BLOCK_TIME_MS + final_block.timestamp as u64;
     // The parent election hash of the PoS genesis is the hash of the PoW genesis block
     let parent_election_hash = Blake2bHash::from_str(&pow_genesis.hash)?;
     // The parent hash of the PoS genesis is the hash of cutting block
-    let parent_hash = Blake2bHash::from_str(&cutting_block.hash)?;
-    let genesis_accounts = get_accounts(client, &cutting_block, pos_genesis_ts)?;
-    let genesis_validators = get_validators(client, &cutting_block)?
-        .into_iter()
-        .map(|validator| validator.validator)
-        .collect();
+    let parent_hash = Blake2bHash::from_str(&final_block.hash)?;
+    let genesis_accounts = get_accounts(client, &final_block, pos_genesis_ts)?;
+    let genesis_validators =
+        get_validators(client, &validator_reg_start_block, &prestake_reg_end_block)?;
+    let genesis_stakers = get_stakers(
+        client,
+        &genesis_validators,
+        &prestake_reg_start_block,
+        &prestake_reg_end_block,
+    )?;
 
     Ok(GenesisConfig {
         seed_message: Some("Albatross TestNet".to_string()),
         vrf_seed: Some(vrf_seed.clone()),
         parent_election_hash: Some(parent_election_hash),
         parent_hash: Some(parent_hash),
-        block_number: cutting_block.number,
+        block_number: final_block.number,
         timestamp: Some(OffsetDateTime::from_unix_timestamp(pos_genesis_ts as i64)?),
-        validators: genesis_validators,
-        stakers: [].to_vec(),
+        validators: genesis_validators
+            .into_iter()
+            .map(|validator| validator.validator)
+            .collect(),
+        stakers: genesis_stakers,
         basic_accounts: genesis_accounts.basic_accounts,
         vesting_accounts: genesis_accounts.vesting_accounts,
         htlc_accounts: genesis_accounts.htlc_accounts,

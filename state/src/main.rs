@@ -1,11 +1,11 @@
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use clap::Parser;
 use log::level_filters::LevelFilter;
 use nimiq_rpc::Client;
 use tracing_subscriber::{filter::Targets, layer::SubscriberExt, util::SubscriberInitExt, Layer};
 
-use state_migration::{get_pos_genesis, write_pos_genesis};
+use state_migration::{get_pos_genesis, types::PoWRegistrationWindow, write_pos_genesis};
 
 /// Command line arguments for the binary
 #[derive(Parser, Debug)]
@@ -19,13 +19,21 @@ struct Args {
     #[arg(short, long)]
     file: String,
 
-    /// Cutting block height to use
+    /// Hash of the block that starts the validator registration window
     #[arg(short, long)]
-    height: u32,
+    validator_start_hash: String,
 
-    /// Cutting block hash to use
+    /// Hash of the block that starts the prestake registration window
     #[arg(short, long)]
-    hash: String,
+    prestake_start_hash: String,
+
+    /// Hash of the block that ends the prestake registration window
+    #[arg(short, long)]
+    prestake_end_hash: String,
+
+    /// Hash of the block will be taken as the genesis block for the PoS chain
+    #[arg(short, long)]
+    final_hash: String,
 
     /// VrfSeed
     #[arg(short, long)]
@@ -33,7 +41,7 @@ struct Args {
 
     /// Genesis delay in minutes
     #[arg(short, long)]
-    delay: u64,
+    confirmations: u32,
 }
 
 fn initialize_logging() {
@@ -60,18 +68,23 @@ fn main() {
             std::process::exit(1);
         }
     };
+    let pow_registration_window = PoWRegistrationWindow {
+        pre_stake_start: args.prestake_start_hash,
+        pre_stake_end: args.prestake_end_hash,
+        validator_start: args.validator_start_hash,
+        final_block: args.final_hash,
+        confirmations: args.confirmations,
+    };
 
     log::info!("Generating genesis configuration from PoW chain");
-    let genesis_delay = Duration::from_secs(args.delay * 60);
     let start = Instant::now();
-    let genesis_config =
-        match get_pos_genesis(&client, args.hash, args.height, &vrf_seed, genesis_delay) {
-            Ok(config) => config,
-            Err(error) => {
-                log::error!(?error, "Failed to build PoS genesis");
-                std::process::exit(1);
-            }
-        };
+    let genesis_config = match get_pos_genesis(&client, &pow_registration_window, &vrf_seed) {
+        Ok(config) => config,
+        Err(error) => {
+            log::error!(?error, "Failed to build PoS genesis");
+            std::process::exit(1);
+        }
+    };
 
     log::info!(filename = args.file, "Writing PoS genesis to file");
     if let Err(error) = write_pos_genesis(&args.file, genesis_config) {
