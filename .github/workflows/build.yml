@@ -29,6 +29,8 @@ jobs:
     - uses: dtolnay/rust-toolchain@stable
       with:
         toolchain: stable
+    - name: Install Protoc
+      run: sudo apt-get install protobuf-compiler
     - name: Build project
       run: cargo build --release
 
@@ -41,6 +43,8 @@ jobs:
       with:
         toolchain: stable
         components: clippy
+    - name: Install Protoc
+      run: sudo apt-get install protobuf-compiler
     - uses: actions-rs/clippy-check@v1
       with:
         name: Clippy Report
