@@ -1,13 +1,15 @@
 pub mod types;
 
-use std::{fs, str::FromStr};
+use std::{fs, str::FromStr, time::Instant};
 
+use nimiq_database::DatabaseProxy;
 use nimiq_genesis_builder::config::GenesisConfig;
 use nimiq_hash::Blake2bHash;
 use nimiq_rpc::Client;
 use nimiq_vrf::VrfSeed;
 use time::OffsetDateTime;
 
+use history_migration::get_history_root;
 use state_migration::{get_accounts, get_stakers, get_validators};
 
 use crate::types::{Error, PoWRegistrationWindow};
@@ -20,6 +22,7 @@ pub fn get_pos_genesis(
     client: &Client,
     pow_reg_window: &PoWRegistrationWindow,
     vrf_seed: &VrfSeed,
+    env: DatabaseProxy,
 ) -> Result<GenesisConfig, Error> {
     // Get block according to arguments and check if it exists
     let validator_reg_start_block = client
@@ -60,6 +63,28 @@ pub fn get_pos_genesis(
         })?;
     let pow_genesis = client.get_block_by_number(1, false)?;
 
+    // Build history tree
+    log::info!(
+        pow_block_number = final_block.number,
+        "Building history tree. This may take some time"
+    );
+    let start = Instant::now();
+    let history_root = match get_history_root(client, &final_block, env) {
+        Ok(history_root) => {
+            let duration = start.elapsed();
+            log::info!(
+                duration = humantime::format_duration(duration).to_string(),
+                history_root = history_root.to_hex(),
+                "Finished building history tree"
+            );
+            history_root
+        }
+        Err(e) => {
+            log::error!(error = ?e, "Failed to build history root");
+            std::process::exit(1);
+        }
+    };
+
     // The PoS genesis timestamp is the cutting block timestamp plus a custom delay
     let pos_genesis_ts =
         pow_reg_window.confirmations as u64 * POW_BLOCK_TIME_MS + final_block.timestamp as u64;
@@ -67,9 +92,15 @@ pub fn get_pos_genesis(
     let parent_election_hash = Blake2bHash::from_str(&pow_genesis.hash)?;
     // The parent hash of the PoS genesis is the hash of cutting block
     let parent_hash = Blake2bHash::from_str(&final_block.hash)?;
+
+    log::info!("Getting PoW account state");
     let genesis_accounts = get_accounts(client, &final_block, pos_genesis_ts)?;
+
+    log::info!("Getting registered validators in the PoW chain");
     let genesis_validators =
         get_validators(client, &validator_reg_start_block, &prestake_reg_end_block)?;
+
+    log::info!("Getting registered stakers in the PoW chain");
     let (genesis_stakers, genesis_validators) = get_stakers(
         client,
         &genesis_validators,
@@ -82,6 +113,7 @@ pub fn get_pos_genesis(
         vrf_seed: Some(vrf_seed.clone()),
         parent_election_hash: Some(parent_election_hash),
         parent_hash: Some(parent_hash),
+        history_root: Some(history_root),
         block_number: final_block.number,
         timestamp: Some(OffsetDateTime::from_unix_timestamp(pos_genesis_ts as i64)?),
         validators: genesis_validators

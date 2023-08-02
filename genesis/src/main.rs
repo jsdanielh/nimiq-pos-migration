@@ -1,7 +1,8 @@
-use std::time::Instant;
+use std::{path::Path, time::Instant};
 
 use clap::Parser;
 use log::level_filters::LevelFilter;
+use nimiq_database::mdbx::MdbxDatabase;
 use nimiq_rpc::Client;
 use tracing_subscriber::{filter::Targets, layer::SubscriberExt, util::SubscriberInitExt, Layer};
 
@@ -42,6 +43,14 @@ struct Args {
     /// Genesis delay in minutes
     #[arg(short, long)]
     confirmations: u32,
+
+    /// TOML output file name
+    #[arg(short, long)]
+    db_path: String,
+
+    /// Set to true for testnet usage
+    #[arg(short, long)]
+    testnet: bool,
 }
 
 fn initialize_logging() {
@@ -76,9 +85,26 @@ fn main() {
         confirmations: args.confirmations,
     };
 
+    // Create DB environment
+    let network_id = if args.testnet { "test" } else { "main" };
+    let db_name = format!("{network_id}-history-consensus").to_lowercase();
+    let db_path = Path::new(&args.db_path).join(db_name);
+    let env = match MdbxDatabase::new_with_max_readers(
+        db_path.clone(),
+        100 * 1024 * 1024 * 1024,
+        20,
+        600,
+    ) {
+        Ok(db) => db,
+        Err(e) => {
+            log::error!(error = ?e, "Failed to create database");
+            std::process::exit(1);
+        }
+    };
+
     log::info!("Generating genesis configuration from PoW chain");
     let start = Instant::now();
-    let genesis_config = match get_pos_genesis(&client, &pow_registration_window, &vrf_seed) {
+    let genesis_config = match get_pos_genesis(&client, &pow_registration_window, &vrf_seed, env) {
         Ok(config) => config,
         Err(error) => {
             log::error!(?error, "Failed to build PoS genesis");
