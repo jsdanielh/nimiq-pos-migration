@@ -15,7 +15,7 @@ use nimiq_primitives::{
 };
 use nimiq_rpc::{
     primitives::{
-        Block, TransactionDetails as PoWTransaction, TransactionSequence as PoWTransactionSequence,
+        TransactionDetails as PoWTransaction, TransactionSequence as PoWTransactionSequence,
     },
     Client,
 };
@@ -107,13 +107,13 @@ fn from_pow_transaction(pow_transaction: &PoWTransaction) -> Result<Transaction,
 /// PoW chain and building a single history tree.
 pub fn get_history_root(
     client: &Client,
-    cutting_pow_block: &Block,
+    cutting_pow_block_number: u32,
     env: DatabaseProxy,
 ) -> Result<Blake2bHash, Error> {
     let history_store = HistoryStore::new(env.clone());
 
     // Setup progress bar
-    let pb = ProgressBar::new(cutting_pow_block.number as u64);
+    let pb = ProgressBar::new(cutting_pow_block_number as u64);
     pb.set_style(
         ProgressStyle::with_template(
             "{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] Block: {pos}, {percent}% (~{eta} remaining)",
@@ -126,7 +126,7 @@ pub fn get_history_root(
     );
 
     // Now get transactions of each block and add it to the PoS history store
-    for block_height in 1..cutting_pow_block.number {
+    for block_height in 1..cutting_pow_block_number {
         // Fixme: This is currently not supported as it uses epoch_at from the block_height
         //if !history_store
         //    .get_block_transactions(block_height, None)

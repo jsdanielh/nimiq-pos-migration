@@ -82,7 +82,7 @@ fn main() {
     // Build history tree
     log::info!(?db_path, "Building history tree");
     let start = Instant::now();
-    match get_history_root(&client, &block, env) {
+    match get_history_root(&client, block.number, env) {
         Ok(history_root) => {
             let duration = start.elapsed();
             log::info!(

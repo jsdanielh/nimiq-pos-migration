@@ -20,17 +20,17 @@ struct Args {
     #[arg(short, long)]
     file: String,
 
-    /// Hash of the block that starts the validator registration window
+    /// Block number of the block that starts the validator registration window
     #[arg(short, long)]
-    validator_start_hash: String,
+    validator_start_hash: u32,
 
-    /// Hash of the block that starts the prestake registration window
+    /// Block number of the block that starts the pre-stake registration window
     #[arg(short, long)]
-    prestake_start_hash: String,
+    prestake_start_hash: u32,
 
-    /// Hash of the block that ends the prestake registration window
+    /// Block number of the block that ends the pre-stake registration window
     #[arg(short, long)]
-    prestake_end_hash: String,
+    prestake_end_hash: u32,
 
     /// Hash of the block will be taken as the genesis block for the PoS chain
     #[arg(short, long)]

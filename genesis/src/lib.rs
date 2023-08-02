@@ -25,33 +25,6 @@ pub fn get_pos_genesis(
     env: DatabaseProxy,
 ) -> Result<GenesisConfig, Error> {
     // Get block according to arguments and check if it exists
-    let validator_reg_start_block = client
-        .get_block_by_hash(&pow_reg_window.validator_start, false)
-        .map_err(|_| {
-            log::error!(
-                pow_reg_window.validator_start,
-                "Could not find provided block"
-            );
-            Error::UnknownBlock
-        })?;
-    let prestake_reg_start_block = client
-        .get_block_by_hash(&pow_reg_window.pre_stake_start, false)
-        .map_err(|_| {
-            log::error!(
-                pow_reg_window.validator_start,
-                "Could not find provided block"
-            );
-            Error::UnknownBlock
-        })?;
-    let prestake_reg_end_block = client
-        .get_block_by_hash(&pow_reg_window.pre_stake_end, false)
-        .map_err(|_| {
-            log::error!(
-                pow_reg_window.validator_start,
-                "Could not find provided block"
-            );
-            Error::UnknownBlock
-        })?;
     let final_block = client
         .get_block_by_hash(&pow_reg_window.final_block, false)
         .map_err(|_| {
@@ -69,7 +42,7 @@ pub fn get_pos_genesis(
         "Building history tree. This may take some time"
     );
     let start = Instant::now();
-    let history_root = match get_history_root(client, &final_block, env) {
+    let history_root = match get_history_root(client, final_block.number, env) {
         Ok(history_root) => {
             let duration = start.elapsed();
             log::info!(
@@ -97,15 +70,16 @@ pub fn get_pos_genesis(
     let genesis_accounts = get_accounts(client, &final_block, pos_genesis_ts)?;
 
     log::info!("Getting registered validators in the PoW chain");
-    let genesis_validators =
-        get_validators(client, &validator_reg_start_block, &prestake_reg_end_block)?;
+    let genesis_validators = get_validators(
+        client,
+        pow_reg_window.validator_start..pow_reg_window.pre_stake_start,
+    )?;
 
     log::info!("Getting registered stakers in the PoW chain");
     let (genesis_stakers, genesis_validators) = get_stakers(
         client,
         &genesis_validators,
-        &prestake_reg_start_block,
-        &prestake_reg_end_block,
+        pow_reg_window.pre_stake_start..pow_reg_window.pre_stake_end,
     )?;
 
     Ok(GenesisConfig {

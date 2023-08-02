@@ -47,15 +47,15 @@ pub enum Error {
 ///
 #[derive(Debug)]
 pub struct PoWRegistrationWindow {
-    /// Block hash of the validator registration window start
-    pub validator_start: String,
-    /// Block hash of the validator registration window end which is also
+    /// Block number of the validator registration window start
+    pub validator_start: u32,
+    /// Block number of the validator registration window end which is also
     /// the pre stake registration window start.
-    pub pre_stake_start: String,
-    /// Pre stake registration window stop.
-    pub pre_stake_end: String,
-    /// Final block in the PoW chain that will be taken as the genesis block for
-    /// the PoS chain.
+    pub pre_stake_start: u32,
+    /// Block number of the pre stake registration window end.
+    pub pre_stake_end: u32,
+    /// Final block hash in the PoW chain that will be taken as the genesis block
+    /// for the PoS chain.
     pub final_block: String,
     /// Number of confirmations after the final block needed for the PoS chain to
     /// start.

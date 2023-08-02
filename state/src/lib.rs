@@ -1,6 +1,6 @@
 pub mod types;
 
-use std::{collections::HashMap, str::FromStr, vec};
+use std::{collections::HashMap, ops::Range, str::FromStr, vec};
 
 use nimiq_bls::PublicKey as BlsPublicKey;
 use nimiq_genesis_builder::config::{
@@ -143,12 +143,11 @@ pub fn get_accounts(
 }
 
 /// Gets the set of validators registered in the PoW chain by parsing the required
-/// transactions within the validator registration window defined by `start_block` and
-/// `end_block`.
+/// transactions within the validator registration window defined by the
+/// `block_window` range.
 pub fn get_validators(
     client: &Client,
-    start_block: &Block,
-    end_block: &Block,
+    block_window: Range<u32>,
 ) -> Result<Vec<GenesisValidator>, Error> {
     let mut txns_by_sender = HashMap::<String, Vec<TransactionDetails>>::new();
     let mut transactions =
@@ -157,7 +156,7 @@ pub fn get_validators(
     let mut validators = vec![];
 
     // Remove any transaction outside of the validator registration window
-    transactions.retain(|txn| (start_block.number..end_block.number).contains(&txn.block_number));
+    transactions.retain(|txn| block_window.contains(&txn.block_number));
 
     // Group all transactions by its sender
     for txn in transactions {
@@ -271,14 +270,13 @@ pub fn get_validators(
 }
 
 /// Gets the set of stakers registered in the PoW chain by parsing the required
-/// transactions within the pre-stake registration window defined by `start_block`
-/// and `end_block`. It uses a set of already registered validators and returns an
-/// updated set of validators along with the stakers.
+/// transactions within the pre-stake registration window defined by the
+/// `block_window` range. It uses a set of already registered validators and
+/// returns an updated set of validators along with the stakers.
 pub fn get_stakers(
     client: &Client,
     registered_validators: &[GenesisValidator],
-    start_block: &Block,
-    end_block: &Block,
+    block_window: Range<u32>,
 ) -> Result<(Vec<GenesisStaker>, Vec<GenesisValidator>), Error> {
     let mut txns_by_sender = HashMap::<String, Vec<TransactionDetails>>::new();
     let mut transactions =
@@ -302,7 +300,7 @@ pub fn get_stakers(
     }
 
     // Remove any transaction outside of the validator registration window
-    transactions.retain(|txn| (start_block.number..end_block.number).contains(&txn.block_number));
+    transactions.retain(|txn| block_window.contains(&txn.block_number));
 
     // Group all transactions by its sender
     for txn in transactions {
