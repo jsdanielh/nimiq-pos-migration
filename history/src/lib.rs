@@ -109,7 +109,7 @@ pub fn get_history_root(
     client: &Client,
     cutting_pow_block: Block,
     env: DatabaseProxy,
-) -> Result<String, Error> {
+) -> Result<Blake2bHash, Error> {
     let history_store = HistoryStore::new(env.clone());
 
     // Setup progress bar
@@ -175,5 +175,4 @@ pub fn get_history_root(
     history_store
         .get_history_tree_root(0, None)
         .ok_or(Error::HistoryRootError)
-        .map(|hash| hash.to_hex())
 }

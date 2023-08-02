@@ -87,7 +87,7 @@ fn main() {
             let duration = start.elapsed();
             log::info!(
                 duration = humantime::format_duration(duration).to_string(),
-                history_root,
+                history_root = history_root.to_hex(),
                 "Finished building history tree"
             )
         }
