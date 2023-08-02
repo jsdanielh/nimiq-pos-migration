@@ -107,7 +107,7 @@ fn from_pow_transaction(pow_transaction: &PoWTransaction) -> Result<Transaction,
 /// PoW chain and building a single history tree.
 pub fn get_history_root(
     client: &Client,
-    cutting_pow_block: Block,
+    cutting_pow_block: &Block,
     env: DatabaseProxy,
 ) -> Result<Blake2bHash, Error> {
     let history_store = HistoryStore::new(env.clone());
