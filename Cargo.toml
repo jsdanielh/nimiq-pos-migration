@@ -1,0 +1,21 @@
+[workspace]
+members = [
+    "genesis",
+    "history",
+    "monitor",
+    "state",
+    "wrapper",
+]
+
+[workspace.package]
+version = "0.1.0"
+authors = ["The Nimiq Core Development Team <info@nimiq.com>"]
+edition = "2021"
+homepage = "https://nimiq.com"
+repository = "https://github.com/jsdanielh/nimiq-pos-migration"
+license = "Apache-2.0"
+categories = ["cryptography::cryptocurrencies"]
+
+[workspace.dependencies]
+nimiq-history-migration = { path = "history" }
+nimiq-state-migration = { path = "state" }

@@ -1,11 +1,11 @@
 use clap::Parser;
 use log::info;
-use nimiq_primitives::policy::Policy;
-use nimiq_rpc::Client;
-use pow_monitor::{
+use nimiq_pow_monitor::{
     check_validators_ready, generate_ready_tx, get_ready_txns, send_tx,
     types::{ValidatorsReadiness, ACTIVATION_HEIGHT},
 };
+use nimiq_primitives::policy::Policy;
+use nimiq_rpc::Client;
 use simple_logger::SimpleLogger;
 use std::{process::exit, thread::sleep, time::Duration};
 

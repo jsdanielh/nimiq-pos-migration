@@ -1,7 +1,12 @@
 [package]
-name = "state_migration"
-version = "0.1.0"
-edition = "2021"
+name = "nimiq-state-migration"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true 
+categories.workspace = true
 description = "Migrates the Nimiq PoW state to Nimiq PoS"
 
 [dependencies]

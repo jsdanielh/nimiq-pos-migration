@@ -1,7 +1,12 @@
 [package]
-name = "pos_wrapper"
-version = "0.1.0"
-edition = "2021"
+name = "nimiq-pos-wrapper"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true 
+categories.workspace = true
 description = "Wrapper for migrating and starting a Nimiq PoS Validator"
 
 [dependencies]

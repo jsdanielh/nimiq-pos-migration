@@ -6,7 +6,7 @@ use nimiq_database::mdbx::MdbxDatabase;
 use nimiq_rpc::Client;
 use tracing_subscriber::{filter::Targets, layer::SubscriberExt, util::SubscriberInitExt, Layer};
 
-use history_migration::get_history_root;
+use nimiq_history_migration::get_history_root;
 
 /// Command line arguments for the binary
 #[derive(Parser, Debug)]

@@ -6,7 +6,7 @@ use nimiq_database::mdbx::MdbxDatabase;
 use nimiq_rpc::Client;
 use tracing_subscriber::{filter::Targets, layer::SubscriberExt, util::SubscriberInitExt, Layer};
 
-use genesis_migration::{get_pos_genesis, types::PoWRegistrationWindow, write_pos_genesis};
+use nimiq_genesis_migration::{get_pos_genesis, types::PoWRegistrationWindow, write_pos_genesis};
 
 /// Command line arguments for the binary
 #[derive(Parser, Debug)]

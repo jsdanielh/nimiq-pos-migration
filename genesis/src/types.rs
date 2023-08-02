@@ -11,7 +11,7 @@ pub enum Error {
     UnknownBlock,
     /// State migration error
     #[error("State migration error: {0}")]
-    State(#[from] state_migration::types::Error),
+    State(#[from] nimiq_state_migration::types::Error),
     /// Hex conversion error
     #[error("Failed to decode string as hex")]
     Hex(#[from] hex::FromHexError),

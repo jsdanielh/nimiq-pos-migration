@@ -9,8 +9,8 @@ use nimiq_rpc::Client;
 use nimiq_vrf::VrfSeed;
 use time::OffsetDateTime;
 
-use history_migration::get_history_root;
-use state_migration::{get_accounts, get_stakers, get_validators};
+use nimiq_history_migration::get_history_root;
+use nimiq_state_migration::{get_accounts, get_stakers, get_validators};
 
 use crate::types::{Error, PoWRegistrationWindow};
 
