@@ -86,11 +86,12 @@ fn from_pow_transaction(pow_transaction: &PoWTransaction) -> Result<Transaction,
     let mut tx = Transaction::new_extended(
         sender,
         sender_type,
+        [].to_vec(),
         recipient,
         recipient_type,
+        data,
         value,
         fee,
-        data,
         validity_start_height,
         network_id,
     );

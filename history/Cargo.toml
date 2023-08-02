@@ -11,12 +11,12 @@ humantime = "2.1"
 indicatif = "0.17"
 jsonrpc = "0.16"
 log = { package = "tracing", version = "0.1", features = ["log"] }
-nimiq-blockchain = { git = "https://github.com/nimiq/core-rs-albatross.git", branch = "jsdanielh/transaction" }
-nimiq-database = { git = "https://github.com/nimiq/core-rs-albatross.git", branch = "jsdanielh/transaction" }
-nimiq-hash = { git = "https://github.com/nimiq/core-rs-albatross.git", branch = "jsdanielh/transaction" }
-nimiq-keys = { git = "https://github.com/nimiq/core-rs-albatross.git", branch = "jsdanielh/transaction" }
-nimiq-primitives = { git = "https://github.com/nimiq/core-rs-albatross.git", branch = "jsdanielh/transaction" }
-nimiq-transaction = { git = "https://github.com/nimiq/core-rs-albatross.git", branch = "jsdanielh/transaction" }
+nimiq-blockchain = { git = "https://github.com/nimiq/core-rs-albatross.git" }
+nimiq-database = { git = "https://github.com/nimiq/core-rs-albatross.git" }
+nimiq-hash = { git = "https://github.com/nimiq/core-rs-albatross.git" }
+nimiq-keys = { git = "https://github.com/nimiq/core-rs-albatross.git" }
+nimiq-primitives = { git = "https://github.com/nimiq/core-rs-albatross.git" }
+nimiq-transaction = { git = "https://github.com/nimiq/core-rs-albatross.git" }
 nimiq_rpc = { git = "https://github.com/jsdanielh/rust-client.git" }
 thiserror = "1.0"
 tracing-subscriber = { version = "0.3", features = ["registry"] }
