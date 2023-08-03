@@ -6,6 +6,7 @@ use nimiq_pow_monitor::{
 };
 use nimiq_primitives::policy::Policy;
 use nimiq_rpc::Client;
+use nimiq_state_migration::types::GenesisValidator;
 use simple_logger::SimpleLogger;
 use std::{process::exit, thread::sleep, time::Duration};
 
@@ -63,8 +64,7 @@ fn main() {
             let transactions = get_ready_txns(
                 &client,
                 validator_address.clone(),
-                previous_election_block,
-                next_election_block,
+                previous_election_block..next_election_block,
             );
 
             if transactions.is_empty() {
@@ -80,8 +80,8 @@ fn main() {
                 reported_ready = true;
             }
         }
-
-        let validators_status = check_validators_ready(&client);
+        let validator_list: Vec<GenesisValidator> = Vec::new();
+        let validators_status = check_validators_ready(&client, validator_list);
         match validators_status {
             ValidatorsReadiness::NotReady(slots) => {
                 info!(

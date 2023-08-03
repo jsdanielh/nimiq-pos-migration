@@ -1,9 +1,10 @@
+use nimiq_primitives::coin::Coin;
 use thiserror::Error;
 
 pub const ACTIVATION_HEIGHT: u32 = 100;
 pub enum ValidatorsReadiness {
-    NotReady(u16),
-    Ready(u16),
+    NotReady(Coin),
+    Ready(Coin),
 }
 
 #[derive(Error, Debug)]

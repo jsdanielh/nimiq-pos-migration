@@ -18,4 +18,6 @@ categories = ["cryptography::cryptocurrencies"]
 
 [workspace.dependencies]
 nimiq-history-migration = { path = "history" }
+nimiq-genesis-migration = { path = "genesis"}
 nimiq-state-migration = { path = "state" }
+nimiq-pow-monitor = { path = "monitor" }

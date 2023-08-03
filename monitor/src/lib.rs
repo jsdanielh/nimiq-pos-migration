@@ -1,16 +1,20 @@
 pub mod types;
-
-use std::collections::HashMap;
+use percentage::Percentage;
+use std::{collections::HashMap, ops::Range};
 
 use log::{error, info};
 use nimiq_keys::Address;
-use nimiq_primitives::policy::Policy;
+use nimiq_primitives::coin::Coin;
 use nimiq_rpc::{
     primitives::{OutgoingTransaction, TransactionDetails},
     Client,
 };
+use nimiq_state_migration::types::GenesisValidator;
 
 use types::{Error, ValidatorsReadiness, ACTIVATION_HEIGHT};
+
+/// Stake percentage that is considered to indicate that the validators are ready
+pub const READY_PERCENTAGE: u8 = 80;
 
 // Sends a transaction to the Nimiq PoW chain to report that we are ready
 // The transaction format is defined as follow:
@@ -34,16 +38,15 @@ pub fn generate_ready_tx(validator: String) -> OutgoingTransaction {
 pub fn get_ready_txns(
     client: &Client,
     validator: String,
-    start_block: u32,
-    end_block: u32,
+    block_window: Range<u32>,
 ) -> Vec<TransactionDetails> {
     if let Ok(transactions) = client.get_transactions_by_address(&validator, 10) {
         let filtered_txns: Vec<TransactionDetails> = transactions
             .into_iter()
             .filter(|txn| {
                 // Here we filter by current epoch
-                (txn.block_number > start_block)
-                    && (txn.block_number < end_block)
+                (txn.block_number > block_window.start)
+                    && (txn.block_number < block_window.end)
                     && (txn.to_address == Address::burn_address().to_user_friendly_address())
                     && txn.value == 1
             })
@@ -70,7 +73,16 @@ pub fn send_tx(client: &Client, transaction: OutgoingTransaction) -> Result<(), 
 
 // Checks if enough validators are ready
 // If thats the case, the number of slots which are ready are returned
-pub fn check_validators_ready(client: &Client) -> ValidatorsReadiness {
+// The validators_allocation is a HashMap from Validator to number of slots owned by that validator
+pub fn check_validators_ready(
+    client: &Client,
+    validators: Vec<GenesisValidator>,
+) -> ValidatorsReadiness {
+    // First calculate the total amount of stake
+    let total_stake: Coin = validators.iter().map(|validator| validator.balance).sum();
+
+    log::debug!(" The total registered stake is {}", total_stake);
+
     // First we need to obtain the validator list, along with the slot allocation for the first epoch.
     let mut validator_list = HashMap::new();
 
@@ -91,12 +103,16 @@ pub fn check_validators_ready(client: &Client) -> ValidatorsReadiness {
     log::info!("Starting to collect transactions from validators...");
 
     // Now we need to collect all the transations for each validator
-    for validator in validator_list.keys() {
-        if let Ok(transactions) = client.get_transactions_by_address(validator, 10) {
+    for validator in validators {
+        let address = validator
+            .validator
+            .validator_address
+            .to_user_friendly_address();
+        if let Ok(transactions) = client.get_transactions_by_address(&address, 10) {
             info!(
                 "There are {} transactions from {}",
                 transactions.len(),
-                validator
+                address
             );
             // We only keep the ones past the activation window that met the activation criteria
             let filtered_txns: Vec<TransactionDetails> = transactions
@@ -118,30 +134,37 @@ pub fn check_validators_ready(client: &Client) -> ValidatorsReadiness {
         }
     }
 
-    // Now we need to see if 2f+1 validator are ready, in order to select the election block candidate.
-    let mut ready_slots = 0;
+    // Now we need to see if we have enough stake ready
+    let mut ready_stake = Coin::ZERO;
 
     for ready_validator in ready_validators {
-        let validator_slots = validator_list
-            .get(ready_validator)
-            .expect("The validator must be present");
+        ready_stake += ready_validator.balance;
+
         info!(
-            " Validator {} is ready with {} slots.",
-            ready_validator, validator_slots
+            " Validator {} is ready with {} stake.",
+            ready_validator
+                .validator
+                .validator_address
+                .to_user_friendly_address(),
+            ready_validator.balance
         );
-        ready_slots += validator_slots;
     }
 
-    info!(" We have {} total slots ready", ready_slots);
+    info!(" We have {} total stake ready", u64::from(ready_stake));
+    let percent = Percentage::from(READY_PERCENTAGE);
 
-    if ready_slots >= Policy::TWO_F_PLUS_ONE {
+    let needed_stake = percent.apply_to(u64::from(total_stake));
+
+    info!(" We need at least {} stake to be ready", needed_stake);
+
+    if u64::from(ready_stake) >= needed_stake {
         info!(" Enough validators are ready to start the PoS Chain! ");
-        ValidatorsReadiness::Ready(ready_slots)
+        ValidatorsReadiness::Ready(ready_stake)
     } else {
         info!(
-            " Not enough validators are ready, we need at least {} slots ",
-            Policy::TWO_F_PLUS_ONE
+            " Not enough validators are ready, we need at least {} stake ",
+            needed_stake
         );
-        ValidatorsReadiness::NotReady(ready_slots)
+        ValidatorsReadiness::NotReady(ready_stake)
     }
 }

@@ -10,3 +10,15 @@ categories.workspace = true
 description = "Wrapper for migrating and starting a Nimiq PoS Validator"
 
 [dependencies]
+clap = { version = "4.3", features = ["derive"] }
+jsonrpc = "0.16"
+log = { package = "tracing", version = "0.1", features = ["log"] }
+nimiq-database = { git = "https://github.com/nimiq/core-rs-albatross.git" }
+nimiq-primitives = { git = "https://github.com/nimiq/core-rs-albatross.git",features = ["policy"]}
+nimiq_rpc = { git = "https://github.com/jsdanielh/rust-client.git" }
+simple_logger = "4.2.0"
+thiserror = "1.0"
+tracing-subscriber = { version = "0.3", features = ["registry"] }
+nimiq-genesis-migration = { workspace = true}
+nimiq-pow-monitor = { workspace = true}
+nimiq-state-migration = { workspace = true}
