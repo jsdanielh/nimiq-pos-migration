@@ -29,7 +29,7 @@ pub fn get_pos_genesis(
         .get_block_by_hash(&pow_reg_window.final_block, false)
         .map_err(|_| {
             log::error!(
-                pow_reg_window.validator_start,
+                hash = pow_reg_window.final_block,
                 "Could not find provided block"
             );
             Error::UnknownBlock

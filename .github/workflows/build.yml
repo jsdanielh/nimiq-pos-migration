@@ -49,4 +49,4 @@ jobs:
       with:
         name: Clippy Report
         token: ${{ secrets.GITHUB_TOKEN }}
-        args: --release --all-features -- -D "warnings"
+        args: --release --all-features -- -D warnings

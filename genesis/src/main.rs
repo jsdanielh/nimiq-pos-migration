@@ -22,15 +22,15 @@ struct Args {
 
     /// Block number of the block that starts the validator registration window
     #[arg(short, long)]
-    validator_start_hash: u32,
+    validator_start: u32,
 
     /// Block number of the block that starts the pre-stake registration window
     #[arg(short, long)]
-    prestake_start_hash: u32,
+    prestake_start: u32,
 
     /// Block number of the block that ends the pre-stake registration window
     #[arg(short, long)]
-    prestake_end_hash: u32,
+    prestake_end: u32,
 
     /// Hash of the block will be taken as the genesis block for the PoS chain
     #[arg(short, long)]
@@ -78,9 +78,9 @@ fn main() {
         }
     };
     let pow_registration_window = PoWRegistrationWindow {
-        pre_stake_start: args.prestake_start_hash,
-        pre_stake_end: args.prestake_end_hash,
-        validator_start: args.validator_start_hash,
+        pre_stake_start: args.prestake_start,
+        pre_stake_end: args.prestake_end,
+        validator_start: args.validator_start,
         final_block: args.final_hash,
         confirmations: args.confirmations,
     };
