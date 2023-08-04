@@ -125,15 +125,31 @@ pub fn get_history_root(
         .progress_chars("#>-"),
     );
 
-    // Now get transactions of each block and add it to the PoS history store
-    for block_height in 1..cutting_pow_block_number {
-        // Fixme: This is currently not supported as it uses epoch_at from the block_height
-        //if !history_store
-        //    .get_block_transactions(block_height, None)
-        //    .is_empty()
-        //{
-        //    continue;
-        //};
+    // We might have already some work done. Check if the database already content
+    // a history tree and if so, get its last leaf block number.
+    let start = match history_store.get_last_leaf_block_number(None) {
+        Some(block_height) => {
+            if block_height > cutting_pow_block_number {
+                // If the last leaf in the HS has a block height greater than the
+                // `cutting_pow_block_number` we are potentially dealing with an
+                // incompatible DB.
+                log::error!("Found incompatible history store in the database");
+                return Err(Error::HistoryRootError);
+            }
+            // If there was already a history tree that we can use, continue with
+            // the next block
+            block_height + 1
+        }
+        // If there is no history tree, start from the genesis
+        None => 1,
+    };
+
+    // Get transactions of each block and add them to the PoS history store
+    for block_height in start..cutting_pow_block_number {
+        // Refresh the progress bar position
+        pb.set_position(block_height as u64);
+
+        // Get all transactions for this block height
         let mut transactions = vec![];
         let block = client.get_block_by_number(block_height, false)?;
         let mut network_id = NetworkId::Main;
@@ -157,6 +173,8 @@ pub fn get_history_root(
             }
             PoWTransactionSequence::Transactions(_) => panic!("Unexpected transaction type"),
         }
+
+        // Add transactions to the history store
         let mut txn = env.write_transaction();
         history_store.add_to_history(
             &mut txn,
@@ -170,8 +188,9 @@ pub fn get_history_root(
             ),
         );
         txn.commit();
-        pb.set_position(block_height as u64);
     }
+
+    // Get history tree root
     history_store
         .get_history_tree_root(0, None)
         .ok_or(Error::HistoryRootError)
