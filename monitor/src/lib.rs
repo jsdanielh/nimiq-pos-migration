@@ -3,13 +3,14 @@ pub mod types;
 use std::collections::HashMap;
 
 use log::{error, info};
+use nimiq_keys::Address;
 use nimiq_primitives::policy::Policy;
 use nimiq_rpc::{
     primitives::{OutgoingTransaction, TransactionDetails},
     Client,
 };
 
-use types::{Error, ValidatorsReadiness, ACTIVATION_HEIGHT, BURN_ADDRESS};
+use types::{Error, ValidatorsReadiness, ACTIVATION_HEIGHT};
 
 // Sends a transaction to the Nimiq PoW chain to report that we are ready
 // The transaction format is defined as follow:
@@ -21,14 +22,12 @@ use types::{Error, ValidatorsReadiness, ACTIVATION_HEIGHT, BURN_ADDRESS};
 //
 pub fn generate_ready_tx(validator: String) -> OutgoingTransaction {
     info!(" Generating ready transaction, from {} ", validator);
-    let tx = OutgoingTransaction {
+    OutgoingTransaction {
         from: validator,
-        to: BURN_ADDRESS.to_string(),
+        to: Address::burn_address().to_user_friendly_address(),
         value: 1, //Lunas
         fee: 0,
-    };
-
-    tx
+    }
 }
 
 // Checks if we have seen a ready transaction from a validator in the specified range
@@ -45,7 +44,7 @@ pub fn get_ready_txns(
                 // Here we filter by current epoch
                 (txn.block_number > start_block)
                     && (txn.block_number < end_block)
-                    && (txn.to_address == BURN_ADDRESS.to_string())
+                    && (txn.to_address == Address::burn_address().to_user_friendly_address())
                     && txn.value == 1
             })
             .collect();
@@ -79,12 +78,12 @@ pub fn check_validators_ready(client: &Client) -> ValidatorsReadiness {
     // The validator address and the slots assigned to each address
     validator_list.insert(
         "NQ28 GSPY V07Q DJTK Y8TG DFYD KR5Q 9KBF HV5A".to_string(),
-        100 as u16,
+        100u16,
     );
 
     validator_list.insert(
         "NQ56 7L0M GQPS GNCU VGGT LV4S 4HHN F701 2DEF".to_string(),
-        412 as u16,
+        412u16,
     );
 
     let mut ready_validators = Vec::new();
@@ -92,8 +91,8 @@ pub fn check_validators_ready(client: &Client) -> ValidatorsReadiness {
     log::info!("Starting to collect transactions from validators...");
 
     // Now we need to collect all the transations for each validator
-    for (validator, _slots) in &validator_list {
-        if let Ok(transactions) = client.get_transactions_by_address(&validator, 10) {
+    for validator in validator_list.keys() {
+        if let Ok(transactions) = client.get_transactions_by_address(validator, 10) {
             info!(
                 "There are {} transactions from {}",
                 transactions.len(),
@@ -105,7 +104,7 @@ pub fn check_validators_ready(client: &Client) -> ValidatorsReadiness {
                 .filter(|txn| {
                     // Here we filter by the readiness criteria, TBD
                     (txn.block_number > ACTIVATION_HEIGHT)
-                        && (txn.to_address == BURN_ADDRESS.to_string())
+                        && (txn.to_address == Address::burn_address().to_user_friendly_address())
                         && txn.value == 1
                 })
                 .collect();
@@ -113,7 +112,7 @@ pub fn check_validators_ready(client: &Client) -> ValidatorsReadiness {
                 "Transactions that met the readiness criteria: {}",
                 filtered_txns.len()
             );
-            if filtered_txns.len() >= 1 {
+            if !filtered_txns.is_empty() {
                 ready_validators.push(validator);
             }
         }

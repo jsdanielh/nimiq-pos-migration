@@ -51,9 +51,8 @@ fn main() {
         let current_height = client.block_number().unwrap();
         info!(" Current block height: {}", current_height);
 
-        let next_election_block = Policy::election_block_after(current_height.try_into().unwrap());
-        let mut previous_election_block =
-            Policy::election_block_before(current_height.try_into().unwrap());
+        let next_election_block = Policy::election_block_after(current_height);
+        let mut previous_election_block = Policy::election_block_before(current_height);
 
         if previous_election_block < ACTIVATION_HEIGHT {
             previous_election_block = ACTIVATION_HEIGHT;
@@ -68,8 +67,8 @@ fn main() {
                 next_election_block,
             );
 
-            if transactions.len() == 0 {
-                //Report we are ready to the Nimiq PoW chain:
+            if transactions.is_empty() {
+                // Report we are ready to the Nimiq PoW chain:
                 let transaction = generate_ready_tx(validator_address.clone());
 
                 match send_tx(&client, transaction) {
@@ -101,17 +100,14 @@ fn main() {
 
         sleep(Duration::from_secs(60));
 
-        if next_election_block
-            != Policy::election_block_after(client.block_number().unwrap().try_into().unwrap())
-        {
+        if next_election_block != Policy::election_block_after(client.block_number().unwrap()) {
             reported_ready = false;
         }
     }
 
     // Now that we have enough validators ready, we need to pick the next election block candidate
 
-    let candidate =
-        Policy::election_block_after(client.block_number().unwrap().try_into().unwrap());
+    let candidate = Policy::election_block_after(client.block_number().unwrap());
 
     info!("The next election candidate is {}", candidate);
 
