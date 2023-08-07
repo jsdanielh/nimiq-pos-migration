@@ -1,3 +1,4 @@
+[![Build](https://github.com/jsdanielh/nimiq-pos-migration/actions/workflows/build.yml/badge.svg)](https://github.com/jsdanielh/nimiq-pos-migration/actions/workflows/build.yml)
 # Nimiq Proof-of-Stake Migration
 
 This repository contains a set of tools and utilities to help the migration process from Nimiq Proof-of-Work to Nimiq
