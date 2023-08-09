@@ -43,8 +43,8 @@ struct Args {
 /// TODO This should be specified in a configuration file?
 const VALIDATOR_REGISTRATION_START: u32 = 2590000;
 const VALIDATOR_REGISTRATION_END: u32 = 2660000;
-const PRE_STAKE_START: u32 = VALIDATOR_REGISTRATION_END;
-const PRE_STAKE_END: u32 = 2000;
+const PRE_STAKE_START: u32 = VALIDATOR_REGISTRATION_END + 1;
+const PRE_STAKE_END: u32 = PRE_STAKE_START + 2000;
 const BLOCK_CONFIRMATIONS: u32 = 10;
 
 fn initialize_logging() {
@@ -144,9 +144,8 @@ fn main() {
         let current_height = client.block_number().unwrap();
         info!(" Current block height: {}", current_height);
 
-        let next_election_block = Policy::election_block_after(current_height.try_into().unwrap());
-        let mut previous_election_block =
-            Policy::election_block_before(current_height.try_into().unwrap());
+        let next_election_block = Policy::election_block_after(current_height);
+        let mut previous_election_block = Policy::election_block_before(current_height);
 
         if previous_election_block < ACTIVATION_HEIGHT {
             previous_election_block = ACTIVATION_HEIGHT;
@@ -160,8 +159,8 @@ fn main() {
                 previous_election_block..next_election_block,
             );
 
-            if transactions.len() == 0 {
-                //Report we are ready to the Nimiq PoW chain:
+            if transactions.is_empty() {
+                // Report we are ready to the Nimiq PoW chain:
                 let transaction = generate_ready_tx(validator_address.clone());
 
                 match send_tx(&client, transaction) {
@@ -195,16 +194,13 @@ fn main() {
         sleep(Duration::from_secs(60));
 
         // If at this point we have a new nex_election_block, it means that we are in a new epoch, so we need to report we are ready again.
-        if next_election_block
-            != Policy::election_block_after(client.block_number().unwrap().try_into().unwrap())
-        {
+        if next_election_block != Policy::election_block_after(client.block_number().unwrap()) {
             reported_ready = false;
         }
     }
 
     // Now that we have enough validators ready, we need to pick the next election block candidate
-    let candidate =
-        Policy::election_block_after(client.block_number().unwrap().try_into().unwrap());
+    let candidate = Policy::election_block_after(client.block_number().unwrap());
 
     info!("The next election candidate is {}", candidate);
 
@@ -260,8 +256,8 @@ fn main() {
         }
     };
 
-    if let Err(_) = write_pos_genesis(&args.file, genesis_config) {
-        log::error!("Could not write genesis config file");
+    if let Err(err) = write_pos_genesis(&args.file, genesis_config) {
+        log::error!("Could not write genesis config file: {}", err);
         exit(1);
     }
     // Start the nimiq 2.0 client with the generated genesis file
