@@ -11,7 +11,7 @@ description = "Migrates the Nimiq PoW state to Nimiq PoS"
 
 [dependencies]
 hex = "0.4"
-jsonrpc = "0.16"
+jsonrpsee = { version = "0.20", features = ["client-core"] }
 log = { package = "tracing", version = "0.1", features = ["log"] }
 nimiq-bls = { git = "https://github.com/nimiq/core-rs-albatross.git" }
 nimiq-genesis-builder = { git = "https://github.com/nimiq/core-rs-albatross.git" }
@@ -21,5 +21,5 @@ nimiq-primitives = { git = "https://github.com/nimiq/core-rs-albatross.git" }
 nimiq-serde = { git = "https://github.com/nimiq/core-rs-albatross.git" }
 nimiq-transaction = { git = "https://github.com/nimiq/core-rs-albatross.git" }
 nimiq-vrf = { git = "https://github.com/nimiq/core-rs-albatross.git" }
-nimiq_rpc = { git = "https://github.com/jsdanielh/rust-client.git" }
+nimiq_rpc = { git = "https://github.com/jsdanielh/rust-client.git", branch = "jsdanielh/jsonrpsee" }
 thiserror = "1.0"

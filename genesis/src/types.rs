@@ -5,7 +5,7 @@ use thiserror::Error;
 pub enum Error {
     /// RPC error
     #[error("RPC error: {0}")]
-    Rpc(#[from] jsonrpc::Error),
+    Rpc(#[from] jsonrpsee::core::Error),
     /// Unknown PoW block
     #[error("Unknown PoW block")]
     UnknownBlock,

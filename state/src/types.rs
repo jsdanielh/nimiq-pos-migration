@@ -10,7 +10,7 @@ use thiserror::Error;
 pub enum Error {
     /// RPC error
     #[error("RPC error: {0}")]
-    Rpc(#[from] jsonrpc::Error),
+    Rpc(#[from] jsonrpsee::core::Error),
     /// Address parsing error
     #[error("Failed to parse Nimiq address")]
     Address(#[from] AddressParseError),

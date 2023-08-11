@@ -5,6 +5,7 @@ use log::level_filters::LevelFilter;
 use nimiq_database::mdbx::MdbxDatabase;
 use nimiq_rpc::Client;
 use tracing_subscriber::{filter::Targets, layer::SubscriberExt, util::SubscriberInitExt, Layer};
+use url::Url;
 
 use nimiq_history_migration::get_history_root;
 
@@ -45,14 +46,22 @@ fn initialize_logging() {
         .init();
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let args = Args::parse();
-    let client = Client::new(&args.rpc);
+    let url = match Url::parse(&args.rpc) {
+        Ok(url) => url,
+        Err(error) => {
+            log::error!(?error, "Invalid RPC URL");
+            std::process::exit(1);
+        }
+    };
+    let client = Client::new(url);
 
     initialize_logging();
 
     // Get block according to arguments and check if it exists
-    let block = client.get_block_by_hash(&args.hash, false).unwrap();
+    let block = client.get_block_by_hash(&args.hash, false).await.unwrap();
     if block.number != args.height {
         log::error!(
             height = args.height,
@@ -82,7 +91,7 @@ fn main() {
     // Build history tree
     log::info!(?db_path, "Building history tree");
     let start = Instant::now();
-    match get_history_root(&client, block.number, env) {
+    match get_history_root(&client, block.number, env).await {
         Ok(history_root) => {
             let duration = start.elapsed();
             log::info!(

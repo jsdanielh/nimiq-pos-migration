@@ -13,10 +13,16 @@ description = "Sends a validator ready transaction to the Nimiq PoW chain and mo
 clap = { version = "4.3", features = ["derive"] }
 jsonrpc = "0.16"
 log = "0.4.19"
-nimiq-primitives = { git = "https://github.com/nimiq/core-rs-albatross.git",features = ["policy"]}
-nimiq_rpc = { git = "https://github.com/jsdanielh/rust-client.git" }
-nimiq-state-migration = { path = "../state"}
 nimiq-keys = { git = "https://github.com/nimiq/core-rs-albatross.git" }
+nimiq-primitives = { git = "https://github.com/nimiq/core-rs-albatross.git",features = ["policy"]}
+nimiq-state-migration = { path = "../state"}
+nimiq_rpc = { git = "https://github.com/jsdanielh/rust-client.git", branch = "jsdanielh/jsonrpsee" }
+percentage = "0.1.0"
 simple_logger = "4.2.0"
 thiserror = "1.0"
-percentage = "0.1.0"
+tokio = { version = "1.29", features = [
+    "macros",
+    "rt-multi-thread",
+    "tracing",
+] }
+url = "2.3"

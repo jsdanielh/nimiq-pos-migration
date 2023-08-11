@@ -5,6 +5,7 @@ use log::level_filters::LevelFilter;
 use nimiq_database::mdbx::MdbxDatabase;
 use nimiq_rpc::Client;
 use tracing_subscriber::{filter::Targets, layer::SubscriberExt, util::SubscriberInitExt, Layer};
+use url::Url;
 
 use nimiq_genesis_migration::{get_pos_genesis, types::PoWRegistrationWindow, write_pos_genesis};
 
@@ -65,11 +66,19 @@ fn initialize_logging() {
         .init();
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     initialize_logging();
 
     let args = Args::parse();
-    let client = Client::new(&args.rpc);
+    let url = match Url::parse(&args.rpc) {
+        Ok(url) => url,
+        Err(error) => {
+            log::error!(?error, "Invalid RPC URL");
+            std::process::exit(1);
+        }
+    };
+    let client = Client::new(url);
     let vrf_seed = match serde_json::from_str(&format!(r#""{}""#, args.vrf)) {
         Ok(value) => value,
         Err(error) => {
@@ -104,13 +113,14 @@ fn main() {
 
     log::info!("Generating genesis configuration from PoW chain");
     let start = Instant::now();
-    let genesis_config = match get_pos_genesis(&client, &pow_registration_window, &vrf_seed, env) {
-        Ok(config) => config,
-        Err(error) => {
-            log::error!(?error, "Failed to build PoS genesis");
-            std::process::exit(1);
-        }
-    };
+    let genesis_config =
+        match get_pos_genesis(&client, &pow_registration_window, &vrf_seed, env).await {
+            Ok(config) => config,
+            Err(error) => {
+                log::error!(?error, "Failed to build PoS genesis");
+                std::process::exit(1);
+            }
+        };
 
     log::info!(filename = args.file, "Writing PoS genesis to file");
     if let Err(error) = write_pos_genesis(&args.file, genesis_config) {

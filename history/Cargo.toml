@@ -14,7 +14,7 @@ clap = { version = "4.3", features = ["derive"] }
 hex = "0.4"
 humantime = "2.1"
 indicatif = "0.17"
-jsonrpc = "0.16"
+jsonrpsee = { version = "0.20", features = ["client-core"] }
 log = { package = "tracing", version = "0.1", features = ["log"] }
 nimiq-blockchain = { git = "https://github.com/nimiq/core-rs-albatross.git" }
 nimiq-database = { git = "https://github.com/nimiq/core-rs-albatross.git" }
@@ -22,6 +22,12 @@ nimiq-hash = { git = "https://github.com/nimiq/core-rs-albatross.git" }
 nimiq-keys = { git = "https://github.com/nimiq/core-rs-albatross.git" }
 nimiq-primitives = { git = "https://github.com/nimiq/core-rs-albatross.git" }
 nimiq-transaction = { git = "https://github.com/nimiq/core-rs-albatross.git" }
-nimiq_rpc = { git = "https://github.com/jsdanielh/rust-client.git" }
+nimiq_rpc = { git = "https://github.com/jsdanielh/rust-client.git", branch = "jsdanielh/jsonrpsee" }
 thiserror = "1.0"
+tokio = { version = "1.29", features = [
+    "macros",
+    "rt-multi-thread",
+    "tracing",
+] }
 tracing-subscriber = { version = "0.3", features = ["registry"] }
+url = "2.3"
