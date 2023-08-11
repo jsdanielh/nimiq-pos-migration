@@ -11,41 +11,61 @@ use nimiq_pow_monitor::{
 use nimiq_primitives::policy::Policy;
 use nimiq_rpc::Client;
 use nimiq_state_migration::{get_stakers, get_validators};
-use std::{path::Path, process::exit, thread::sleep, time::Duration};
+use serde::Deserialize;
+use std::{fs, path::Path, process::exit, thread::sleep, time::Duration};
 use tracing_subscriber::{filter::Targets, layer::SubscriberExt, util::SubscriberInitExt, Layer};
 
 /// Command line arguments for the binary
-/// //TODO: Move this to a configuration file
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
-    /// RPC connection URL to use
-    #[arg(short, long)]
-    rpc: String,
-
-    /// The validator address
-    #[arg(short, long)]
-    validator: String,
-
-    /// VrfSeed
-    #[arg(long)]
-    vrf: String,
-
     /// TOML output file name
     #[arg(short, long)]
-    db_path: String,
-
-    /// TOML output file name
-    #[arg(short, long)]
-    file: String,
+    config: String,
 }
 
-/// TODO This should be specified in a configuration file?
-const VALIDATOR_REGISTRATION_START: u32 = 2590000;
-const VALIDATOR_REGISTRATION_END: u32 = 2660000;
-const PRE_STAKE_START: u32 = VALIDATOR_REGISTRATION_END + 1;
-const PRE_STAKE_END: u32 = PRE_STAKE_START + 2000;
-const BLOCK_CONFIRMATIONS: u32 = 10;
+// Top level struct to hold the TOML data.
+#[derive(Deserialize)]
+#[serde(rename_all = "kebab-case")]
+struct Data {
+    rpc_server: RpcServerSettings,
+    block_windows: BlockWindows,
+    genesis: Genesis,
+    files: Files,
+    validator: Validator,
+}
+
+// Config struct holds to data from the `[config]` section.
+#[derive(Deserialize)]
+struct RpcServerSettings {
+    host: String,
+}
+
+// Config struct holds to data from the `[config]` section.
+#[derive(Deserialize)]
+struct BlockWindows {
+    registration_start: u32,
+    registration_end: u32,
+    pre_stake_start: u32,
+    pre_stake_end: u32,
+    block_confirmations: u32,
+}
+
+#[derive(Deserialize)]
+struct Genesis {
+    vrf_seed: String,
+}
+
+#[derive(Deserialize)]
+struct Files {
+    db_path: String,
+    genesis: String,
+}
+
+#[derive(Deserialize)]
+struct Validator {
+    validator_address: String,
+}
 
 fn initialize_logging() {
     let filter = Targets::new().with_default(LevelFilter::DEBUG);
@@ -70,11 +90,28 @@ fn main() {
     initialize_logging();
 
     let args = Args::parse();
-    let validator_address = args.validator.clone();
 
+    let contents = match fs::read_to_string(&args.config) {
+        Ok(c) => c,
+
+        Err(_) => {
+            log::error!("Could not read file `{}`", args.config);
+            exit(1);
+        }
+    };
+
+    let config: Data = match toml::from_str(&contents) {
+        Ok(d) => d,
+        Err(err) => {
+            log::error!("Unable to read TOML from `{}`, error {}", args.config, err);
+            exit(1);
+        }
+    };
+
+    let validator_address = config.validator.validator_address.clone();
     info!(" This is our validator address: {}", validator_address);
 
-    let vrf_seed = match serde_json::from_str(&format!(r#""{}""#, args.vrf)) {
+    let vrf_seed = match serde_json::from_str(&format!(r#""{}""#, config.genesis.vrf_seed)) {
         Ok(value) => value,
         Err(_) => {
             log::error!("Invalid VRF seed");
@@ -82,7 +119,7 @@ fn main() {
         }
     };
 
-    let client = Client::new(&args.rpc);
+    let client = Client::new(&config.rpc_server.host);
 
     loop {
         let status = client.consensus().unwrap();
@@ -97,7 +134,9 @@ fn main() {
     }
 
     // This tool is intended to be used past the pre-stake window
-    if client.block_number().unwrap() < PRE_STAKE_END + BLOCK_CONFIRMATIONS {
+    if client.block_number().unwrap()
+        < config.block_windows.pre_stake_end + config.block_windows.block_confirmations
+    {
         log::error!("This tool is intended to be used during the activation period");
         exit(1);
     }
@@ -105,7 +144,7 @@ fn main() {
     // First we obtain the list of registered validators
     let registered_validators = match get_validators(
         &client,
-        VALIDATOR_REGISTRATION_START..VALIDATOR_REGISTRATION_END,
+        config.block_windows.registration_start..config.block_windows.registration_end,
     ) {
         Ok(validators) => validators,
         Err(err) => {
@@ -127,10 +166,10 @@ fn main() {
     }
 
     // Now we obtain the stake distribution
-    let (_, validators) = match get_stakers(
+    let (stakers, validators) = match get_stakers(
         &client,
         &registered_validators,
-        PRE_STAKE_START..PRE_STAKE_END,
+        config.block_windows.pre_stake_start..config.block_windows.pre_stake_end,
     ) {
         Ok((stakers, validators)) => (stakers, validators),
         Err(err) => {
@@ -138,6 +177,16 @@ fn main() {
             exit(1)
         }
     };
+
+    log::debug!("This is the list of stakers: ");
+
+    for staker in &stakers {
+        log::debug!(
+            " Staker Address {} Balance {}",
+            staker.staker_address,
+            staker.balance
+        );
+    }
 
     let mut reported_ready = false;
     loop {
@@ -153,6 +202,7 @@ fn main() {
 
         if !reported_ready {
             // Obtain all the transactions that we have sent previously.
+            // TODO: We need to check that this validator is part of the list of the registered validators!
             let transactions = get_ready_txns(
                 &client,
                 validator_address.clone(),
@@ -160,7 +210,13 @@ fn main() {
             );
 
             if transactions.is_empty() {
-                // Report we are ready to the Nimiq PoW chain:
+                log::info!(" We didnt find a ready transaction from our validator in this window");
+                log::info!(
+                    " Previous election block {}, Next election block {}",
+                    previous_election_block,
+                    next_election_block
+                );
+                //Report we are ready to the Nimiq PoW chain:
                 let transaction = generate_ready_tx(validator_address.clone());
 
                 match send_tx(&client, transaction) {
@@ -205,7 +261,7 @@ fn main() {
     info!("The next election candidate is {}", candidate);
 
     loop {
-        if client.block_number().unwrap() >= candidate + BLOCK_CONFIRMATIONS {
+        if client.block_number().unwrap() >= candidate + config.block_windows.block_confirmations {
             info!("We are ready to start the migration process.. ");
             break;
         } else {
@@ -222,11 +278,11 @@ fn main() {
 
     // Start the genesis generation process
     let pow_registration_window = PoWRegistrationWindow {
-        pre_stake_start: PRE_STAKE_START,
-        pre_stake_end: PRE_STAKE_END,
-        validator_start: VALIDATOR_REGISTRATION_START,
+        pre_stake_start: config.block_windows.pre_stake_start,
+        pre_stake_end: config.block_windows.pre_stake_end,
+        validator_start: config.block_windows.registration_start,
         final_block: block.hash,
-        confirmations: BLOCK_CONFIRMATIONS,
+        confirmations: config.block_windows.block_confirmations,
     };
 
     // Create DB environment
@@ -234,7 +290,7 @@ fn main() {
     // TODO: move this to a configuration file
     let network_id = "test";
     let db_name = format!("{network_id}-history-consensus").to_lowercase();
-    let db_path = Path::new(&args.db_path).join(db_name);
+    let db_path = Path::new(&config.files.db_path).join(db_name);
     let env = match MdbxDatabase::new_with_max_readers(
         db_path.clone(),
         100 * 1024 * 1024 * 1024,
@@ -256,7 +312,7 @@ fn main() {
         }
     };
 
-    if let Err(err) = write_pos_genesis(&args.file, genesis_config) {
+    if let Err(err) = write_pos_genesis(&config.files.genesis, genesis_config) {
         log::error!("Could not write genesis config file: {}", err);
         exit(1);
     }

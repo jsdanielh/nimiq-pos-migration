@@ -1,0 +1,25 @@
+[block-windows]
+registration_start   = 2590000
+registration_end     = 2660000
+pre_stake_start      = 2660000
+pre_stake_end        = 2663100
+block_confirmations  = 10
+
+[genesis]
+vrf_seed = "e8c7f2f3935da9ca39419aa7d2cc90817245f75e58cc543f2b9478766308e8a50fffccb09e2df3546f5a0c0059d73a506c48fa2b546f15b511d0f7a63f0ee20cd510a87f520e26478bb687ca31a08db8b02921f9a22e32a790c07f16dbdf4501"
+
+[files]
+db_path = "state"
+genesis = "output.toml"
+
+[rpc-server]
+host = "http://127.0.0.1:8648/"
+
+[validator]
+validator_address = "NQ28 GSPY V07Q DJTK Y8TG DFYD KR5Q 9KBF HV5A"
+#voting_key = "f956104eb94c7dfbcb6729747f87e705786f1d1bcbb36b268cfc1e8e8b608420e7ece282aae9544595413ce91ebaa6361e168a0e75087de6536bf79d0e69c968d20d185931b6a3b23ff95c30bfdb7458158e7f42f2e67f40d812263308770100"
+#voting_key_file = "voting_key.dat"
+#fee_key_file = "fee_key.dat"
+#fee_key = "ab51606cf7a24e9c43b181a4bb07d4c17c22f6f3a748eed77f19bf843cb9cf8d"
+#signing_key_file = "signing_key.dat"
+#signing_key = "33cc1de1d976d2992447af5b97f92cdf6cc63f0494c8dcf0a1ecd67813aa44a2"
