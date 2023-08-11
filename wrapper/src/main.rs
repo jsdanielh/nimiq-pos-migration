@@ -1,9 +1,15 @@
+use std::{fs, path::Path, process::exit, thread::sleep, time::Duration};
+
 use clap::Parser;
 use jsonrpc::serde_json;
 use log::info;
 use log::level_filters::LevelFilter;
 use nimiq_database::mdbx::MdbxDatabase;
-use nimiq_genesis_migration::{get_pos_genesis, types::PoWRegistrationWindow, write_pos_genesis};
+use nimiq_genesis_migration::{
+    get_pos_genesis,
+    types::{PoSRegisteredAgents, PoWRegistrationWindow},
+    write_pos_genesis,
+};
 use nimiq_pow_monitor::{
     check_validators_ready, generate_ready_tx, get_ready_txns, send_tx,
     types::{ValidatorsReadiness, ACTIVATION_HEIGHT},
@@ -12,7 +18,6 @@ use nimiq_primitives::policy::Policy;
 use nimiq_rpc::Client;
 use nimiq_state_migration::{get_stakers, get_validators};
 use serde::Deserialize;
-use std::{fs, path::Path, process::exit, thread::sleep, time::Duration};
 use tracing_subscriber::{filter::Targets, layer::SubscriberExt, util::SubscriberInitExt, Layer};
 
 /// Command line arguments for the binary
@@ -304,7 +309,16 @@ fn main() {
         }
     };
 
-    let genesis_config = match get_pos_genesis(&client, &pow_registration_window, &vrf_seed, env) {
+    let genesis_config = match get_pos_genesis(
+        &client,
+        &pow_registration_window,
+        &vrf_seed,
+        env,
+        Some(PoSRegisteredAgents {
+            validators,
+            stakers,
+        }),
+    ) {
         Ok(config) => config,
         Err(err) => {
             log::error!("Failed to build PoS genesis: {}", err);

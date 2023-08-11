@@ -1,5 +1,8 @@
 use thiserror::Error;
 
+use nimiq_genesis_builder::config::GenesisStaker;
+use nimiq_state_migration::types::GenesisValidator;
+
 /// Error types that can be returned
 #[derive(Error, Debug)]
 pub enum Error {
@@ -60,4 +63,13 @@ pub struct PoWRegistrationWindow {
     /// Number of confirmations after the final block needed for the PoS chain to
     /// start.
     pub confirmations: u32,
+}
+
+/// PoS agents that were registered in the PoW chain that will take part of the
+/// PoS genesis block.
+pub struct PoSRegisteredAgents {
+    /// Registered PoS validators
+    pub validators: Vec<GenesisValidator>,
+    /// Registered PoS stakers
+    pub stakers: Vec<GenesisStaker>,
 }

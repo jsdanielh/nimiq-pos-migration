@@ -104,13 +104,14 @@ fn main() {
 
     log::info!("Generating genesis configuration from PoW chain");
     let start = Instant::now();
-    let genesis_config = match get_pos_genesis(&client, &pow_registration_window, &vrf_seed, env) {
-        Ok(config) => config,
-        Err(error) => {
-            log::error!(?error, "Failed to build PoS genesis");
-            std::process::exit(1);
-        }
-    };
+    let genesis_config =
+        match get_pos_genesis(&client, &pow_registration_window, &vrf_seed, env, None) {
+            Ok(config) => config,
+            Err(error) => {
+                log::error!(?error, "Failed to build PoS genesis");
+                std::process::exit(1);
+            }
+        };
 
     log::info!(filename = args.file, "Writing PoS genesis to file");
     if let Err(error) = write_pos_genesis(&args.file, genesis_config) {

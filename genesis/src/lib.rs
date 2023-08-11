@@ -12,7 +12,7 @@ use time::OffsetDateTime;
 use nimiq_history_migration::get_history_root;
 use nimiq_state_migration::{get_accounts, get_stakers, get_validators};
 
-use crate::types::{Error, PoWRegistrationWindow};
+use crate::types::{Error, PoSRegisteredAgents, PoWRegistrationWindow};
 
 // POW estimated block time in milliseconds
 const POW_BLOCK_TIME_MS: u64 = 60 * 1000; // 1 min
@@ -23,6 +23,7 @@ pub fn get_pos_genesis(
     pow_reg_window: &PoWRegistrationWindow,
     vrf_seed: &VrfSeed,
     env: DatabaseProxy,
+    pos_registered_agents: Option<PoSRegisteredAgents>,
 ) -> Result<GenesisConfig, Error> {
     // Get block according to arguments and check if it exists
     let final_block = client
@@ -69,18 +70,23 @@ pub fn get_pos_genesis(
     log::info!("Getting PoW account state");
     let genesis_accounts = get_accounts(client, &final_block, pos_genesis_ts)?;
 
-    log::info!("Getting registered validators in the PoW chain");
-    let genesis_validators = get_validators(
-        client,
-        pow_reg_window.validator_start..pow_reg_window.pre_stake_start,
-    )?;
+    let (genesis_stakers, genesis_validators) =
+        if let Some(registered_agents) = pos_registered_agents {
+            (registered_agents.stakers, registered_agents.validators)
+        } else {
+            log::info!("Getting registered validators in the PoW chain");
+            let genesis_validators = get_validators(
+                client,
+                pow_reg_window.validator_start..pow_reg_window.pre_stake_start,
+            )?;
 
-    log::info!("Getting registered stakers in the PoW chain");
-    let (genesis_stakers, genesis_validators) = get_stakers(
-        client,
-        &genesis_validators,
-        pow_reg_window.pre_stake_start..pow_reg_window.pre_stake_end,
-    )?;
+            log::info!("Getting registered stakers in the PoW chain");
+            get_stakers(
+                client,
+                &genesis_validators,
+                pow_reg_window.pre_stake_start..pow_reg_window.pre_stake_end,
+            )?
+        };
 
     Ok(GenesisConfig {
         seed_message: Some("Albatross TestNet".to_string()),
