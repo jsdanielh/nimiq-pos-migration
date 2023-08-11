@@ -8,7 +8,7 @@ use nimiq_state_migration::types::GenesisValidator;
 pub enum Error {
     /// RPC error
     #[error("RPC error: {0}")]
-    Rpc(#[from] jsonrpc::Error),
+    Rpc(#[from] jsonrpsee::core::Error),
     /// Unknown PoW block
     #[error("Unknown PoW block")]
     UnknownBlock,

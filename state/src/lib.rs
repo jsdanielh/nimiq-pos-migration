@@ -99,7 +99,7 @@ fn pos_anyhash_from_hash_root(hash_root: &str, algorithm: u8) -> Result<AnyHash,
 
 /// Gets the set of the Genesis Accounts by taking a snapshot of the accounts in
 /// a specific block number defined by `cutting_block`.
-pub fn get_accounts(
+pub async fn get_accounts(
     client: &Client,
     cutting_block: &Block,
     pos_genesis_ts: u64,
@@ -111,7 +111,9 @@ pub fn get_accounts(
     };
     let mut start_prefix = "".to_string();
     loop {
-        let chunk = client.get_accounts_tree_chunk(&cutting_block.hash, &start_prefix)?;
+        let chunk = client
+            .get_accounts_tree_chunk(&cutting_block.hash, &start_prefix)
+            .await?;
         if chunk.nodes.is_empty() || start_prefix == chunk.tail {
             break;
         }
@@ -145,13 +147,14 @@ pub fn get_accounts(
 /// Gets the set of validators registered in the PoW chain by parsing the required
 /// transactions within the validator registration window defined by the
 /// `block_window` range.
-pub fn get_validators(
+pub async fn get_validators(
     client: &Client,
     block_window: Range<u32>,
 ) -> Result<Vec<GenesisValidator>, Error> {
     let mut txns_by_sender = HashMap::<String, Vec<TransactionDetails>>::new();
-    let mut transactions =
-        client.get_transactions_by_address(&Address::burn_address().to_string(), u16::MAX)?;
+    let mut transactions = client
+        .get_transactions_by_address(&Address::burn_address().to_string(), u16::MAX)
+        .await?;
     let mut possible_validators = HashMap::new();
     let mut validators = vec![];
 
@@ -273,14 +276,15 @@ pub fn get_validators(
 /// transactions within the pre-stake registration window defined by the
 /// `block_window` range. It uses a set of already registered validators and
 /// returns an updated set of validators along with the stakers.
-pub fn get_stakers(
+pub async fn get_stakers(
     client: &Client,
     registered_validators: &[GenesisValidator],
     block_window: Range<u32>,
 ) -> Result<(Vec<GenesisStaker>, Vec<GenesisValidator>), Error> {
     let mut txns_by_sender = HashMap::<String, Vec<TransactionDetails>>::new();
-    let mut transactions =
-        client.get_transactions_by_address(&Address::burn_address().to_string(), u16::MAX)?;
+    let mut transactions = client
+        .get_transactions_by_address(&Address::burn_address().to_string(), u16::MAX)
+        .await?;
     let mut validators = HashMap::new();
     let mut stakers = vec![];
 

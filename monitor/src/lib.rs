@@ -35,12 +35,12 @@ pub fn generate_ready_tx(validator: String) -> OutgoingTransaction {
 }
 
 // Checks if we have seen a ready transaction from a validator in the specified range
-pub fn get_ready_txns(
+pub async fn get_ready_txns(
     client: &Client,
     validator: String,
     block_window: Range<u32>,
 ) -> Vec<TransactionDetails> {
-    if let Ok(transactions) = client.get_transactions_by_address(&validator, 10) {
+    if let Ok(transactions) = client.get_transactions_by_address(&validator, 10).await {
         let filtered_txns: Vec<TransactionDetails> = transactions
             .into_iter()
             .filter(|txn| {
@@ -58,8 +58,8 @@ pub fn get_ready_txns(
 }
 
 // Sends a transaction into the Nimiq PoW chain
-pub fn send_tx(client: &Client, transaction: OutgoingTransaction) -> Result<(), Error> {
-    match client.send_transaction(&transaction) {
+pub async fn send_tx(client: &Client, transaction: OutgoingTransaction) -> Result<(), Error> {
+    match client.send_transaction(&transaction).await {
         Ok(_) => {
             info!(" Sent transaction to the Nimiq PoW network");
             Ok(())
@@ -74,7 +74,7 @@ pub fn send_tx(client: &Client, transaction: OutgoingTransaction) -> Result<(), 
 // Checks if enough validators are ready
 // If thats the case, the number of slots which are ready are returned
 // The validators_allocation is a HashMap from Validator to number of slots owned by that validator
-pub fn check_validators_ready(
+pub async fn check_validators_ready(
     client: &Client,
     validators: Vec<GenesisValidator>,
 ) -> ValidatorsReadiness {
@@ -108,7 +108,7 @@ pub fn check_validators_ready(
             .validator
             .validator_address
             .to_user_friendly_address();
-        if let Ok(transactions) = client.get_transactions_by_address(&address, 10) {
+        if let Ok(transactions) = client.get_transactions_by_address(&address, 10).await {
             info!(
                 "There are {} transactions from {}",
                 transactions.len(),

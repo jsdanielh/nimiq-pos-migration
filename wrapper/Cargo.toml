@@ -17,11 +17,17 @@ toml = "0.5.2"
 serde = "1.0.136"
 serde_derive = "1.0.136"
 nimiq-database = { git = "https://github.com/nimiq/core-rs-albatross.git" }
+nimiq-genesis-migration = { workspace = true}
+nimiq-pow-monitor = { workspace = true}
 nimiq-primitives = { git = "https://github.com/nimiq/core-rs-albatross.git",features = ["policy"]}
+nimiq-state-migration = { workspace = true}
 nimiq_rpc = { git = "https://github.com/jsdanielh/rust-client.git" }
 simple_logger = "4.2.0"
 thiserror = "1.0"
+tokio = { version = "1.29", features = [
+    "macros",
+    "rt-multi-thread",
+    "tracing",
+] }
 tracing-subscriber = { version = "0.3", features = ["registry"] }
-nimiq-genesis-migration = { workspace = true}
-nimiq-pow-monitor = { workspace = true}
-nimiq-state-migration = { workspace = true}
+url = "2.3"

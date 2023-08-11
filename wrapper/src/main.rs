@@ -19,6 +19,7 @@ use nimiq_rpc::Client;
 use nimiq_state_migration::{get_stakers, get_validators};
 use serde::Deserialize;
 use tracing_subscriber::{filter::Targets, layer::SubscriberExt, util::SubscriberInitExt, Layer};
+use url::Url;
 
 /// Command line arguments for the binary
 #[derive(Parser, Debug)]
@@ -84,7 +85,8 @@ fn initialize_logging() {
         .init();
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     //    1 - Use the monitor library to send ready txn and determine if enough validators are ready
     //    2 - Once enough validators are ready we select the next genesis candidate and wait until that block is mined
     //    3 - When the genesis candidate is mined we start the genesis generation process
@@ -124,22 +126,32 @@ fn main() {
         }
     };
 
-    let client = Client::new(&config.rpc_server.host);
+    let url = match Url::parse(&config.rpc_server.host) {
+        Ok(url) => url,
+        Err(error) => {
+            log::error!(?error, "Invalid RPC URL");
+            std::process::exit(1);
+        }
+    };
+    let client = Client::new(url);
 
     loop {
-        let status = client.consensus().unwrap();
+        let status = client.consensus().await.unwrap();
         if status.eq("established") {
             info!(" Consensus is established");
 
             break;
         }
         info!(" Consensus has not been established yet..");
-        info!(" Current block height: {}", client.block_number().unwrap());
+        info!(
+            " Current block height: {}",
+            client.block_number().await.unwrap()
+        );
         sleep(Duration::from_secs(10));
     }
 
     // This tool is intended to be used past the pre-stake window
-    if client.block_number().unwrap()
+    if client.block_number().await.unwrap()
         < config.block_windows.pre_stake_end + config.block_windows.block_confirmations
     {
         log::error!("This tool is intended to be used during the activation period");
@@ -150,7 +162,9 @@ fn main() {
     let registered_validators = match get_validators(
         &client,
         config.block_windows.registration_start..config.block_windows.registration_end,
-    ) {
+    )
+    .await
+    {
         Ok(validators) => validators,
         Err(err) => {
             log::error!("Error {} obtaining the list of registered validators", err);
@@ -175,7 +189,9 @@ fn main() {
         &client,
         &registered_validators,
         config.block_windows.pre_stake_start..config.block_windows.pre_stake_end,
-    ) {
+    )
+    .await
+    {
         Ok((stakers, validators)) => (stakers, validators),
         Err(err) => {
             log::error!("Error {} obtaining the list of stakers ", err);
@@ -195,7 +211,7 @@ fn main() {
 
     let mut reported_ready = false;
     loop {
-        let current_height = client.block_number().unwrap();
+        let current_height = client.block_number().await.unwrap();
         info!(" Current block height: {}", current_height);
 
         let next_election_block = Policy::election_block_after(current_height);
@@ -212,7 +228,8 @@ fn main() {
                 &client,
                 validator_address.clone(),
                 previous_election_block..next_election_block,
-            );
+            )
+            .await;
 
             if transactions.is_empty() {
                 log::info!(" We didnt find a ready transaction from our validator in this window");
@@ -224,7 +241,7 @@ fn main() {
                 //Report we are ready to the Nimiq PoW chain:
                 let transaction = generate_ready_tx(validator_address.clone());
 
-                match send_tx(&client, transaction) {
+                match send_tx(&client, transaction).await {
                     Ok(_) => reported_ready = true,
                     Err(_) => exit(1),
                 }
@@ -235,7 +252,7 @@ fn main() {
         }
 
         // Check if we have enough validators ready at this point
-        let validators_status = check_validators_ready(&client, validators.clone());
+        let validators_status = check_validators_ready(&client, validators.clone()).await;
         match validators_status {
             ValidatorsReadiness::NotReady(stake) => {
                 info!(
@@ -255,31 +272,34 @@ fn main() {
         sleep(Duration::from_secs(60));
 
         // If at this point we have a new nex_election_block, it means that we are in a new epoch, so we need to report we are ready again.
-        if next_election_block != Policy::election_block_after(client.block_number().unwrap()) {
+        if next_election_block != Policy::election_block_after(client.block_number().await.unwrap())
+        {
             reported_ready = false;
         }
     }
 
     // Now that we have enough validators ready, we need to pick the next election block candidate
-    let candidate = Policy::election_block_after(client.block_number().unwrap());
+    let candidate = Policy::election_block_after(client.block_number().await.unwrap());
 
     info!("The next election candidate is {}", candidate);
 
     loop {
-        if client.block_number().unwrap() >= candidate + config.block_windows.block_confirmations {
+        if client.block_number().await.unwrap()
+            >= candidate + config.block_windows.block_confirmations
+        {
             info!("We are ready to start the migration process.. ");
             break;
         } else {
             info!(
                 "Election candidate {}, current height {}",
                 candidate,
-                client.block_number().unwrap()
+                client.block_number().await.unwrap()
             );
             sleep(Duration::from_secs(60));
         }
     }
     // Obtain the genesis candidate block
-    let block = client.get_block_by_number(candidate, false).unwrap();
+    let block = client.get_block_by_number(candidate, false).await.unwrap();
 
     // Start the genesis generation process
     let pow_registration_window = PoWRegistrationWindow {
@@ -318,7 +338,9 @@ fn main() {
             validators,
             stakers,
         }),
-    ) {
+    )
+    .await
+    {
         Ok(config) => config,
         Err(err) => {
             log::error!("Failed to build PoS genesis: {}", err);

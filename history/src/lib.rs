@@ -29,7 +29,7 @@ use thiserror::Error;
 pub enum Error {
     /// RPC error
     #[error("RPC error: {0}")]
-    Rpc(#[from] jsonrpc::Error),
+    Rpc(#[from] jsonrpsee::core::Error),
     /// Unknown PoW block
     #[error("Unknown PoW block")]
     UnknownBlock,
@@ -105,7 +105,7 @@ fn from_pow_transaction(pow_transaction: &PoWTransaction) -> Result<Transaction,
 
 /// Gets the PoS genesis history root by getting all of the transactions from the
 /// PoW chain and building a single history tree.
-pub fn get_history_root(
+pub async fn get_history_root(
     client: &Client,
     cutting_pow_block_number: u32,
     env: DatabaseProxy,
@@ -151,7 +151,7 @@ pub fn get_history_root(
 
         // Get all transactions for this block height
         let mut transactions = vec![];
-        let block = client.get_block_by_number(block_height, false)?;
+        let block = client.get_block_by_number(block_height, false).await?;
         let mut network_id = NetworkId::Main;
         match block.transactions {
             PoWTransactionSequence::BlockHashes(hashes) => {
@@ -160,7 +160,7 @@ pub fn get_history_root(
                 }
                 for hash in hashes {
                     log::trace!(hash, "Processing transaction");
-                    let pow_transaction = client.get_transaction_by_hash(&hash)?;
+                    let pow_transaction = client.get_transaction_by_hash(&hash).await?;
                     let pos_transaction = from_pow_transaction(&pow_transaction)?;
                     network_id = pos_transaction.network_id;
 

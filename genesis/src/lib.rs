@@ -18,7 +18,7 @@ use crate::types::{Error, PoSRegisteredAgents, PoWRegistrationWindow};
 const POW_BLOCK_TIME_MS: u64 = 60 * 1000; // 1 min
 
 /// Gets the genesis config file
-pub fn get_pos_genesis(
+pub async fn get_pos_genesis(
     client: &Client,
     pow_reg_window: &PoWRegistrationWindow,
     vrf_seed: &VrfSeed,
@@ -28,6 +28,7 @@ pub fn get_pos_genesis(
     // Get block according to arguments and check if it exists
     let final_block = client
         .get_block_by_hash(&pow_reg_window.final_block, false)
+        .await
         .map_err(|_| {
             log::error!(
                 hash = pow_reg_window.final_block,
@@ -35,7 +36,7 @@ pub fn get_pos_genesis(
             );
             Error::UnknownBlock
         })?;
-    let pow_genesis = client.get_block_by_number(1, false)?;
+    let pow_genesis = client.get_block_by_number(1, false).await?;
 
     // Build history tree
     log::info!(
@@ -43,7 +44,7 @@ pub fn get_pos_genesis(
         "Building history tree. This may take some time"
     );
     let start = Instant::now();
-    let history_root = match get_history_root(client, final_block.number, env) {
+    let history_root = match get_history_root(client, final_block.number, env).await {
         Ok(history_root) => {
             let duration = start.elapsed();
             log::info!(
@@ -68,7 +69,7 @@ pub fn get_pos_genesis(
     let parent_hash = Blake2bHash::from_str(&final_block.hash)?;
 
     log::info!("Getting PoW account state");
-    let genesis_accounts = get_accounts(client, &final_block, pos_genesis_ts)?;
+    let genesis_accounts = get_accounts(client, &final_block, pos_genesis_ts).await?;
 
     let (genesis_stakers, genesis_validators) =
         if let Some(registered_agents) = pos_registered_agents {
@@ -78,14 +79,16 @@ pub fn get_pos_genesis(
             let genesis_validators = get_validators(
                 client,
                 pow_reg_window.validator_start..pow_reg_window.pre_stake_start,
-            )?;
+            )
+            .await?;
 
             log::info!("Getting registered stakers in the PoW chain");
             get_stakers(
                 client,
                 &genesis_validators,
                 pow_reg_window.pre_stake_start..pow_reg_window.pre_stake_end,
-            )?
+            )
+            .await?
         };
 
     Ok(GenesisConfig {
