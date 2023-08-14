@@ -346,5 +346,9 @@ async fn main() {
         log::error!(?error, "Could not write genesis config file");
         exit(1);
     }
+    log::info!(
+        filename = config.files.genesis,
+        "Finished writing PoS genesis to file"
+    );
     // Start the nimiq 2.0 client with the generated genesis file
 }

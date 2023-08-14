@@ -322,7 +322,7 @@ pub async fn get_stakers(
                     if let Ok(address_str) = std::str::from_utf8(&address_bytes) {
                         if let Ok(address) = Address::from_str(address_str) {
                             if let Some(validator) = validators.get_mut(address_str) {
-                                log::info!(address=txn.from_address, validator_address=%address, "Found pre-stake transaction for validator");
+                                log::info!(staker_address=txn.from_address, validator_address=%address, "Found pre-stake transaction for validator");
                                 if let Ok(staker_address) = Address::from_str(&txn.from_address) {
                                     let stake = Coin::from_u64_unchecked(txn.value);
                                     validator.balance += stake;
