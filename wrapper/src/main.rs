@@ -74,7 +74,9 @@ struct Validator {
 }
 
 fn initialize_logging() {
-    let filter = Targets::new().with_default(LevelFilter::DEBUG);
+    let filter = Targets::new()
+        .with_default(LevelFilter::DEBUG)
+        .with_target("hyper", LevelFilter::WARN);
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::fmt::layer()
