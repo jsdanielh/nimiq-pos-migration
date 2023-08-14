@@ -104,21 +104,21 @@ async fn main() {
         Ok(c) => c,
 
         Err(_) => {
-            log::error!("Could not read file `{}`", args.config);
+            log::error!(file = args.config, "Could not read file");
             exit(1);
         }
     };
 
     let config: Data = match toml::from_str(&contents) {
         Ok(d) => d,
-        Err(err) => {
-            log::error!("Unable to read TOML from `{}`, error {}", args.config, err);
+        Err(error) => {
+            log::error!(file = args.config, ?error, "Unable to read TOML");
             exit(1);
         }
     };
 
     let validator_address = config.validator.validator_address.clone();
-    info!(" This is our validator address: {}", validator_address);
+    info!("This is our validator address: {}", validator_address);
 
     let vrf_seed = match serde_json::from_str(&format!(r#""{}""#, config.genesis.vrf_seed)) {
         Ok(value) => value,
@@ -144,10 +144,9 @@ async fn main() {
 
             break;
         }
-        info!("Consensus has not been established yet..");
         info!(
-            "Current block height: {}",
-            client.block_number().await.unwrap()
+            current_block_height = client.block_number().await.unwrap(),
+            "Consensus has not been established yet.."
         );
         sleep(Duration::from_secs(10));
     }
@@ -168,18 +167,17 @@ async fn main() {
     .await
     {
         Ok(validators) => validators,
-        Err(err) => {
-            log::error!("Error {} obtaining the list of registered validators", err);
+        Err(error) => {
+            log::error!(?error, "Error obtaining the list of registered validators");
             exit(1)
         }
     };
 
-    log::debug!("This is the list of registered validators: ");
+    log::debug!("This is the list of registered validators:");
 
     for validator in &registered_validators {
         log::debug!(
-            " Validator Address: {}",
-            validator
+            validator_address = validator
                 .validator
                 .validator_address
                 .to_user_friendly_address()
@@ -195,26 +193,25 @@ async fn main() {
     .await
     {
         Ok((stakers, validators)) => (stakers, validators),
-        Err(err) => {
-            log::error!("Error {} obtaining the list of stakers ", err);
+        Err(error) => {
+            log::error!(?error, "Error obtaining the list of stakers");
             exit(1)
         }
     };
 
-    log::debug!("This is the list of stakers: ");
+    log::debug!("This is the list of stakers:");
 
     for staker in &stakers {
         log::debug!(
-            "Staker Address {} Balance {}",
-            staker.staker_address,
-            staker.balance
+            staker_address = %staker.staker_address,
+            balance = %staker.balance
         );
     }
 
     let mut reported_ready = false;
     loop {
         let current_height = client.block_number().await.unwrap();
-        info!("Current block height: {}", current_height);
+        info!(current_height);
 
         let next_election_block = Policy::election_block_after(current_height);
         let mut previous_election_block = Policy::election_block_before(current_height);
@@ -234,13 +231,12 @@ async fn main() {
             .await;
 
             if transactions.is_empty() {
-                log::info!("We didn't find a ready transaction from our validator in this window");
                 log::info!(
-                    "Previous election block {}, Next election block {}",
                     previous_election_block,
-                    next_election_block
+                    next_election_block,
+                    "We didn't find a ready transaction from our validator in this window"
                 );
-                //Report we are ready to the Nimiq PoW chain:
+                // Report we are ready to the Nimiq PoW chain:
                 let transaction = generate_ready_tx(validator_address.clone());
 
                 match send_tx(&client, transaction).await {
@@ -248,7 +244,7 @@ async fn main() {
                     Err(_) => exit(1),
                 }
             } else {
-                log::info!(" We found a ready transaction from our validator");
+                log::info!("We found a ready transaction from our validator");
                 reported_ready = true;
             }
         }
@@ -257,15 +253,12 @@ async fn main() {
         let validators_status = check_validators_ready(&client, validators.clone()).await;
         match validators_status {
             ValidatorsReadiness::NotReady(stake) => {
-                info!(
-                    "Not enough validators are ready yet, we have {} stake ready",
-                    u64::from(stake)
-                );
+                info!(stake_ready = %stake, "Not enough validators are ready yet",);
             }
             ValidatorsReadiness::Ready(stake) => {
                 info!(
-                    "Enough validators are ready to start the PoS chain, we have {} stake ready",
-                    u64::from(stake)
+                    stake_ready = %stake,
+                    "Enough validators are ready to start the PoS chain",
                 );
                 break;
             }
@@ -283,19 +276,18 @@ async fn main() {
     // Now that we have enough validators ready, we need to pick the next election block candidate
     let candidate = Policy::election_block_after(client.block_number().await.unwrap());
 
-    info!("The next election candidate is {}", candidate);
+    info!(next_election_candidate = candidate);
 
     loop {
         if client.block_number().await.unwrap()
             >= candidate + config.block_windows.block_confirmations
         {
-            info!("We are ready to start the migration process.. ");
+            info!("We are ready to start the migration process..");
             break;
         } else {
             info!(
-                "Election candidate {}, current height {}",
-                candidate,
-                client.block_number().await.unwrap()
+                election_candidate = candidate,
+                current_height = client.block_number().await.unwrap()
             );
             sleep(Duration::from_secs(60));
         }
@@ -325,8 +317,8 @@ async fn main() {
         600,
     ) {
         Ok(db) => db,
-        Err(e) => {
-            log::error!("Failed to create database, error {}", e);
+        Err(error) => {
+            log::error!(?error, "Failed to create database");
             exit(1);
         }
     };
@@ -344,14 +336,14 @@ async fn main() {
     .await
     {
         Ok(config) => config,
-        Err(err) => {
-            log::error!("Failed to build PoS genesis: {}", err);
+        Err(error) => {
+            log::error!(?error, "Failed to build PoS genesis");
             exit(1);
         }
     };
 
-    if let Err(err) = write_pos_genesis(&config.files.genesis, genesis_config) {
-        log::error!("Could not write genesis config file: {}", err);
+    if let Err(error) = write_pos_genesis(&config.files.genesis, genesis_config) {
+        log::error!(?error, "Could not write genesis config file");
         exit(1);
     }
     // Start the nimiq 2.0 client with the generated genesis file
