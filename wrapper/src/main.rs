@@ -140,13 +140,13 @@ async fn main() {
     loop {
         let status = client.consensus().await.unwrap();
         if status.eq("established") {
-            info!(" Consensus is established");
+            info!("Consensus is established");
 
             break;
         }
-        info!(" Consensus has not been established yet..");
+        info!("Consensus has not been established yet..");
         info!(
-            " Current block height: {}",
+            "Current block height: {}",
             client.block_number().await.unwrap()
         );
         sleep(Duration::from_secs(10));
@@ -178,7 +178,7 @@ async fn main() {
 
     for validator in &registered_validators {
         log::debug!(
-            "  Validator Address: {}",
+            " Validator Address: {}",
             validator
                 .validator
                 .validator_address
@@ -205,7 +205,7 @@ async fn main() {
 
     for staker in &stakers {
         log::debug!(
-            " Staker Address {} Balance {}",
+            "Staker Address {} Balance {}",
             staker.staker_address,
             staker.balance
         );
@@ -214,7 +214,7 @@ async fn main() {
     let mut reported_ready = false;
     loop {
         let current_height = client.block_number().await.unwrap();
-        info!(" Current block height: {}", current_height);
+        info!("Current block height: {}", current_height);
 
         let next_election_block = Policy::election_block_after(current_height);
         let mut previous_election_block = Policy::election_block_before(current_height);
@@ -234,9 +234,9 @@ async fn main() {
             .await;
 
             if transactions.is_empty() {
-                log::info!(" We didnt find a ready transaction from our validator in this window");
+                log::info!("We didn't find a ready transaction from our validator in this window");
                 log::info!(
-                    " Previous election block {}, Next election block {}",
+                    "Previous election block {}, Next election block {}",
                     previous_election_block,
                     next_election_block
                 );
