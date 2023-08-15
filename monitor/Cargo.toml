@@ -13,8 +13,8 @@ description = "Sends a validator ready transaction to the Nimiq PoW chain and mo
 clap = { version = "4.3", features = ["derive"] }
 log = "0.4.19"
 nimiq-keys = { git = "https://github.com/nimiq/core-rs-albatross.git" }
-nimiq-primitives = { git = "https://github.com/nimiq/core-rs-albatross.git",features = ["policy"]}
-nimiq-state-migration = { path = "../state"}
+nimiq-primitives = { git = "https://github.com/nimiq/core-rs-albatross.git",features = ["policy"] }
+nimiq-state-migration = { workspace = true }
 nimiq_rpc = { git = "https://github.com/jsdanielh/rust-client.git" }
 percentage = "0.1.0"
 simple_logger = "4.2.0"

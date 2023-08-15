@@ -14,10 +14,10 @@ clap = { version = "4.3", features = ["derive"] }
 jsonrpc = "0.16"
 log = { package = "tracing", version = "0.1", features = ["log"] }
 nimiq-database = { git = "https://github.com/nimiq/core-rs-albatross.git" }
-nimiq-genesis-migration = { workspace = true}
-nimiq-pow-monitor = { workspace = true}
+nimiq-genesis-migration = { workspace = true }
+nimiq-pow-monitor = { workspace = true }
 nimiq-primitives = { git = "https://github.com/nimiq/core-rs-albatross.git",features = ["policy"]}
-nimiq-state-migration = { workspace = true}
+nimiq-state-migration = { workspace = true }
 nimiq_rpc = { git = "https://github.com/jsdanielh/rust-client.git" }
 serde = "1.0"
 serde_derive = "1.0"

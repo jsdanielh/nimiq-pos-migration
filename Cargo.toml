@@ -17,7 +17,7 @@ license = "Apache-2.0"
 categories = ["cryptography::cryptocurrencies"]
 
 [workspace.dependencies]
+nimiq-genesis-migration = { path = "genesis" }
 nimiq-history-migration = { path = "history" }
-nimiq-genesis-migration = { path = "genesis"}
-nimiq-state-migration = { path = "state" }
 nimiq-pow-monitor = { path = "monitor" }
+nimiq-state-migration = { path = "state" }
