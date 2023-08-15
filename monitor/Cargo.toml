@@ -11,7 +11,6 @@ description = "Sends a validator ready transaction to the Nimiq PoW chain and mo
 
 [dependencies]
 clap = { version = "4.3", features = ["derive"] }
-jsonrpc = "0.16"
 log = "0.4.19"
 nimiq-keys = { git = "https://github.com/nimiq/core-rs-albatross.git" }
 nimiq-primitives = { git = "https://github.com/nimiq/core-rs-albatross.git",features = ["policy"]}
