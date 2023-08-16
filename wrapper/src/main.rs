@@ -21,6 +21,8 @@ use serde::Deserialize;
 use tracing_subscriber::{filter::Targets, layer::SubscriberExt, util::SubscriberInitExt, Layer};
 use url::Url;
 
+use nimiq_pos_wrapper::get_block_windows;
+
 /// Command line arguments for the binary
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -38,8 +40,6 @@ struct Args {
 struct Data {
     #[serde(rename = "rpc-server")]
     rpc_server: RpcServerSettings,
-    #[serde(rename = "block-windows")]
-    block_windows: BlockWindows,
     vrf_seed: String,
     genesis: String,
 }
@@ -50,16 +50,6 @@ struct RpcServerSettings {
     host: String,
     username: Option<String>,
     password: Option<String>,
-}
-
-// Config struct holds to data from the `[config]` section.
-#[derive(Deserialize)]
-struct BlockWindows {
-    registration_start: u32,
-    registration_end: u32,
-    pre_stake_start: u32,
-    pre_stake_end: u32,
-    block_confirmations: u32,
 }
 
 fn initialize_logging() {
@@ -194,6 +184,14 @@ async fn main() {
         Client::new(url)
     };
 
+    let block_windows = match get_block_windows(config.network_id) {
+        Ok(block_windows) => block_windows,
+        Err(error) => {
+            log::error!(?error, "Couldn't get block windows");
+            std::process::exit(1);
+        }
+    };
+
     loop {
         let status = client.consensus().await.unwrap();
         if status.eq("established") {
@@ -210,7 +208,7 @@ async fn main() {
 
     // This tool is intended to be used past the pre-stake window
     if client.block_number().await.unwrap()
-        < settings.block_windows.pre_stake_end + settings.block_windows.block_confirmations
+        < block_windows.pre_stake_end + block_windows.block_confirmations
     {
         log::error!("This tool is intended to be used during the activation period");
         exit(1);
@@ -219,7 +217,7 @@ async fn main() {
     // First we obtain the list of registered validators
     let registered_validators = match get_validators(
         &client,
-        settings.block_windows.registration_start..settings.block_windows.registration_end,
+        block_windows.registration_start..block_windows.registration_end,
     )
     .await
     {
@@ -245,7 +243,7 @@ async fn main() {
     let (stakers, validators) = match get_stakers(
         &client,
         &registered_validators,
-        settings.block_windows.pre_stake_start..settings.block_windows.pre_stake_end,
+        block_windows.pre_stake_start..block_windows.pre_stake_end,
     )
     .await
     {
@@ -336,9 +334,7 @@ async fn main() {
     info!(next_election_candidate = candidate);
 
     loop {
-        if client.block_number().await.unwrap()
-            >= candidate + settings.block_windows.block_confirmations
-        {
+        if client.block_number().await.unwrap() >= candidate + block_windows.block_confirmations {
             info!("We are ready to start the migration process..");
             break;
         } else {
@@ -354,11 +350,11 @@ async fn main() {
 
     // Start the genesis generation process
     let pow_registration_window = PoWRegistrationWindow {
-        pre_stake_start: settings.block_windows.pre_stake_start,
-        pre_stake_end: settings.block_windows.pre_stake_end,
-        validator_start: settings.block_windows.registration_start,
+        pre_stake_start: block_windows.pre_stake_start,
+        pre_stake_end: block_windows.pre_stake_end,
+        validator_start: block_windows.registration_start,
         final_block: block.hash,
-        confirmations: settings.block_windows.block_confirmations,
+        confirmations: block_windows.block_confirmations,
     };
 
     let genesis_config = match get_pos_genesis(
