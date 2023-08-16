@@ -33,23 +33,22 @@ struct Args {
     /// Path to the wrapper settings file
     #[arg(short, long)]
     settings: String,
+    /// PoS RPC server URL
+    #[arg(short, long)]
+    url: String,
+    /// Optional PoS RPC server username
+    #[arg(short, long)]
+    username: Option<String>,
+    /// Optional PoS RPC server password
+    #[arg(short, long)]
+    password: Option<String>,
 }
 
 // Top level struct to hold the TOML data.
 #[derive(Deserialize)]
 struct Data {
-    #[serde(rename = "rpc-server")]
-    rpc_server: RpcServerSettings,
     vrf_seed: String,
     genesis: String,
-}
-
-// Config struct holds to data from the `[config]` section.
-#[derive(Deserialize)]
-struct RpcServerSettings {
-    host: String,
-    username: Option<String>,
-    password: Option<String>,
 }
 
 fn initialize_logging() {
@@ -165,7 +164,7 @@ async fn main() {
         }
     };
 
-    let url = match Url::parse(&settings.rpc_server.host) {
+    let url = match Url::parse(&args.url) {
         Ok(url) => url,
         Err(error) => {
             log::error!(?error, "Invalid RPC URL");
@@ -173,13 +172,8 @@ async fn main() {
         }
     };
 
-    let client = if settings.rpc_server.username.is_some() && settings.rpc_server.password.is_some()
-    {
-        Client::new_with_credentials(
-            url,
-            settings.rpc_server.username.unwrap(),
-            settings.rpc_server.password.unwrap(),
-        )
+    let client = if args.username.is_some() && args.password.is_some() {
+        Client::new_with_credentials(url, args.username.unwrap(), args.password.unwrap())
     } else {
         Client::new(url)
     };
