@@ -5,8 +5,10 @@ use std::{fs, str::FromStr, time::Instant};
 use nimiq_database::DatabaseProxy;
 use nimiq_genesis_builder::config::GenesisConfig;
 use nimiq_hash::Blake2bHash;
+use nimiq_keys::{KeyPair, SecureGenerate};
 use nimiq_rpc::Client;
 use nimiq_vrf::VrfSeed;
+use rand::{rngs::StdRng, SeedableRng};
 use time::OffsetDateTime;
 
 use nimiq_history_migration::get_history_root;
@@ -21,7 +23,6 @@ const POW_BLOCK_TIME_MS: u64 = 60 * 1000; // 1 min
 pub async fn get_pos_genesis(
     client: &Client,
     pow_reg_window: &PoWRegistrationWindow,
-    vrf_seed: &VrfSeed,
     env: DatabaseProxy,
     pos_registered_agents: Option<PoSRegisteredAgents>,
 ) -> Result<GenesisConfig, Error> {
@@ -68,6 +69,12 @@ pub async fn get_pos_genesis(
     // The parent hash of the PoS genesis is the hash of cutting block
     let parent_hash = Blake2bHash::from_str(&final_block.hash)?;
 
+    // Build up the VRF seed using a random seed that comes from the final block hash
+    let mut parent_hash_bytes = [0u8; 32];
+    parent_hash_bytes.copy_from_slice(parent_hash.as_slice());
+    let mut rng = StdRng::from_seed(parent_hash_bytes);
+    let vrf_seed = VrfSeed::default().sign_next_with_rng(&KeyPair::generate(&mut rng), &mut rng);
+
     log::info!("Getting PoW account state");
     let genesis_accounts = get_accounts(client, &final_block, pos_genesis_ts).await?;
 
@@ -93,7 +100,7 @@ pub async fn get_pos_genesis(
 
     Ok(GenesisConfig {
         seed_message: Some("Albatross TestNet".to_string()),
-        vrf_seed: Some(vrf_seed.clone()),
+        vrf_seed: Some(vrf_seed),
         parent_election_hash: Some(parent_election_hash),
         parent_hash: Some(parent_hash),
         history_root: Some(history_root),

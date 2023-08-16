@@ -1,7 +1,6 @@
 use std::{fs, process::exit, thread::sleep, time::Duration};
 
 use clap::Parser;
-use jsonrpc::serde_json;
 use log::info;
 use log::level_filters::LevelFilter;
 use nimiq_genesis_migration::{
@@ -47,7 +46,6 @@ struct Args {
 // Top level struct to hold the TOML data.
 #[derive(Deserialize)]
 struct Data {
-    vrf_seed: String,
     genesis: String,
 }
 
@@ -152,14 +150,6 @@ async fn main() {
         Ok(env) => env,
         Err(error) => {
             log::error!(?error, "Unable to create DB environment");
-            exit(1);
-        }
-    };
-
-    let vrf_seed = match serde_json::from_str(&format!(r#""{}""#, settings.vrf_seed)) {
-        Ok(value) => value,
-        Err(_) => {
-            log::error!("Invalid VRF seed");
             exit(1);
         }
     };
@@ -354,7 +344,6 @@ async fn main() {
     let genesis_config = match get_pos_genesis(
         &client,
         &pow_registration_window,
-        &vrf_seed,
         env,
         Some(PoSRegisteredAgents {
             validators,

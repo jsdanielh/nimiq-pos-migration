@@ -37,10 +37,6 @@ struct Args {
     #[arg(short, long)]
     final_hash: String,
 
-    /// VrfSeed
-    #[arg(short, long)]
-    vrf: String,
-
     /// Genesis delay in minutes
     #[arg(short, long)]
     confirmations: u32,
@@ -81,13 +77,6 @@ async fn main() {
         }
     };
     let client = Client::new(url);
-    let vrf_seed = match serde_json::from_str(&format!(r#""{}""#, args.vrf)) {
-        Ok(value) => value,
-        Err(error) => {
-            log::error!(?error, value = args.vrf, "Invalid VRF seed");
-            std::process::exit(1);
-        }
-    };
     let pow_registration_window = PoWRegistrationWindow {
         pre_stake_start: args.prestake_start,
         pre_stake_end: args.prestake_end,
@@ -115,14 +104,13 @@ async fn main() {
 
     log::info!("Generating genesis configuration from PoW chain");
     let start = Instant::now();
-    let genesis_config =
-        match get_pos_genesis(&client, &pow_registration_window, &vrf_seed, env, None).await {
-            Ok(config) => config,
-            Err(error) => {
-                log::error!(?error, "Failed to build PoS genesis");
-                std::process::exit(1);
-            }
-        };
+    let genesis_config = match get_pos_genesis(&client, &pow_registration_window, env, None).await {
+        Ok(config) => config,
+        Err(error) => {
+            log::error!(?error, "Failed to build PoS genesis");
+            std::process::exit(1);
+        }
+    };
 
     log::info!(filename = args.file, "Writing PoS genesis to file");
     if let Err(error) = write_pos_genesis(&args.file, genesis_config) {

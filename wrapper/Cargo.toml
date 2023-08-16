@@ -11,7 +11,6 @@ description = "Wrapper for migrating and starting a Nimiq PoS Validator"
 
 [dependencies]
 clap = { version = "4.3", features = ["derive"] }
-jsonrpc = "0.16"
 log = { package = "tracing", version = "0.1", features = ["log"] }
 nimiq-genesis-migration = { workspace = true }
 nimiq-lib = { git = "https://github.com/nimiq/core-rs-albatross.git", features = [
